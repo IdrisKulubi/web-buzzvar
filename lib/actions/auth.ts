@@ -2,16 +2,14 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { headers } from 'next/headers'
 
 export async function signInWithGoogle() {
   const supabase = await createClient()
-  const origin = (await headers()).get('origin')
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${origin}/auth/callback`,
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -20,8 +18,8 @@ export async function signInWithGoogle() {
   })
   
   if (error) {
-    console.error('Google OAuth error:', error)
-    redirect('/auth/login?error=oauth_error')
+    console.error('Error signing in with Google:', error)
+    throw error
   }
   
   if (data.url) {
@@ -31,52 +29,26 @@ export async function signInWithGoogle() {
 
 export async function signOut() {
   const supabase = await createClient()
+  
   const { error } = await supabase.auth.signOut()
   
   if (error) {
-    console.error('Sign out error:', error)
-    redirect('/auth/login?error=signout_error')
+    console.error('Error signing out:', error)
+    throw error
   }
   
-  redirect('/auth/login')
+  redirect('/login')
 }
 
-export async function getUser() {
+export async function getCurrentUser() {
   const supabase = await createClient()
+  
   const { data: { user }, error } = await supabase.auth.getUser()
   
   if (error) {
-    console.error('Get user error:', error)
+    console.error('Error getting current user:', error)
     return null
   }
   
   return user
-}
-
-export async function getUserRole(userId: string) {
-  const supabase = await createClient()
-  
-  // Check if user is super admin
-  const { data: adminUser } = await supabase
-    .from('admin_users')
-    .select('role')
-    .eq('user_id', userId)
-    .single()
-  
-  if (adminUser) {
-    return adminUser.role as 'super_admin' | 'admin'
-  }
-  
-  // Check if user is club owner
-  const { data: venueOwner } = await supabase
-    .from('venue_owners')
-    .select('id')
-    .eq('user_id', userId)
-    .single()
-  
-  if (venueOwner) {
-    return 'club_owner'
-  }
-  
-  return null
 }

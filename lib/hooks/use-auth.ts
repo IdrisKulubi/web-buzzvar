@@ -1,7 +1,7 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import type { User } from '@supabase/supabase-js'
 import type { UserRole } from '@/lib/utils/auth'
 
@@ -42,9 +42,9 @@ export function useAuth() {
     )
 
     return () => subscription.unsubscribe()
-  }, [supabase.auth])
+  }, [supabase.auth, fetchUserRole])
 
-  const fetchUserRole = async (userId: string) => {
+  const fetchUserRole = useCallback(async (userId: string) => {
     try {
       // Check if user is admin
       const { data: adminUser } = await supabase
@@ -75,7 +75,7 @@ export function useAuth() {
       console.error('Error fetching user role:', error)
       setRole(null)
     }
-  }
+  }, [supabase])
 
   return {
     user,

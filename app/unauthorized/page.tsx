@@ -1,29 +1,32 @@
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { signOut } from '@/lib/actions/auth'
+import { AlertCircle } from 'lucide-react'
 
 export default function UnauthorizedPage() {
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Access Denied</CardTitle>
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/20">
+            <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
+          </div>
+          <CardTitle className="text-2xl font-bold">Access Denied</CardTitle>
           <CardDescription>
-            You don't have permission to access this resource.
+            You don&apos;t have permission to access the dashboard
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-muted-foreground text-center">
-            If you believe this is an error, please contact your administrator.
+        <CardContent className="text-center space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Your account doesn&apos;t have the necessary role assigned to access the admin dashboard. 
+            Please contact your administrator to get the appropriate permissions.
           </p>
-          <div className="flex flex-col gap-2">
-            <Button asChild>
-              <Link href="/">Go Home</Link>
+          
+          <form action={signOut}>
+            <Button type="submit" variant="outline" className="w-full">
+              Sign Out
             </Button>
-            <Button variant="outline" asChild>
-              <Link href="/auth/login">Sign In Again</Link>
-            </Button>
-          </div>
+          </form>
         </CardContent>
       </Card>
     </div>
