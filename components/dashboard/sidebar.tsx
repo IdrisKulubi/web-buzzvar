@@ -26,60 +26,127 @@ interface NavItem {
   roles: UserRole[];
 }
 
-const navItems: NavItem[] = [
-  {
-    title: "Dashboard",
-    href: "/super-admin",
-    icon: Home,
-    roles: ["super_admin", "admin", "moderator", "club_owner"],
-  },
-  {
-    title: "Analytics",
-    href: "/dashboard/analytics",
-    icon: BarChart3,
-    roles: ["super_admin"],
-  },
-  {
-    title: "Users",
-    href: "/super-admin/users",
-    icon: Users,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    title: "Venues",
-    href: "/super-admin/venues",
-    icon: Building2,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    title: "Events",
-    href: "/super-admin/events",
-    icon: Calendar,
-    roles: ["super_admin", "admin"],
-  },
-  {
-    title: "Reports",
-    href: "/super-admin/reports",
-    icon: MessageSquare,
-    roles: ["super_admin", "admin", "moderator"],
-  },
-  {
-    title: "Admin Users",
-    href: "/super-admin/admin-users",
-    icon: Shield,
-    roles: ["super_admin"],
-  },
-  {
-    title: "Settings",
-    href: "/super-admin/settings",
-    icon: Settings,
-    roles: ["super_admin"],
-  },
-];
+const getNavItems = (userRole: UserRole): NavItem[] => {
+  const baseItems: NavItem[] = [];
+
+  if (userRole === "super_admin") {
+    return [
+      {
+        title: "Dashboard",
+        href: "/super-admin",
+        icon: Home,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Analytics",
+        href: "/dashboard/analytics",
+        icon: BarChart3,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Users",
+        href: "/super-admin/users",
+        icon: Users,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Venues",
+        href: "/super-admin/venues",
+        icon: Building2,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Events",
+        href: "/super-admin/events",
+        icon: Calendar,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Reports",
+        href: "/super-admin/reports",
+        icon: MessageSquare,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Admin Users",
+        href: "/super-admin/admin-users",
+        icon: Shield,
+        roles: ["super_admin"],
+      },
+      {
+        title: "Settings",
+        href: "/super-admin/settings",
+        icon: Settings,
+        roles: ["super_admin"],
+      },
+    ];
+  }
+
+  if (userRole === "admin" || userRole === "moderator") {
+    return [
+      {
+        title: "Dashboard",
+        href: "/admin",
+        icon: Home,
+        roles: ["admin", "moderator"],
+      },
+      {
+        title: "Users",
+        href: "/admin/users",
+        icon: Users,
+        roles: ["admin"],
+      },
+      {
+        title: "Venues",
+        href: "/admin/venues",
+        icon: Building2,
+        roles: ["admin", "moderator"],
+      },
+      {
+        title: "Reports",
+        href: "/admin/reports",
+        icon: MessageSquare,
+        roles: ["admin", "moderator"],
+      },
+    ];
+  }
+
+  if (userRole === "club_owner") {
+    return [
+      {
+        title: "Dashboard",
+        href: "/club-owner",
+        icon: Home,
+        roles: ["club_owner"],
+      },
+      {
+        title: "My Venues",
+        href: "/club-owner/venues",
+        icon: Building2,
+        roles: ["club_owner"],
+      },
+      {
+        title: "Events",
+        href: "/club-owner/events",
+        icon: Calendar,
+        roles: ["club_owner"],
+      },
+      {
+        title: "Analytics",
+        href: "/club-owner/analytics",
+        icon: BarChart3,
+        roles: ["club_owner"],
+      },
+    ];
+  }
+
+  return baseItems;
+};
 
 export function DashboardSidebar({ userRole }: DashboardSidebarProps) {
   const pathname = usePathname();
 
+  const navItems = getNavItems(userRole);
   const filteredNavItems = navItems.filter(item => 
     userRole && item.roles.includes(userRole)
   );

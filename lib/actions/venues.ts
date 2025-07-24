@@ -283,10 +283,314 @@ export async function updateVenueDetails(
 
     revalidatePath("/super-admin/venues");
     revalidatePath(`/super-admin/venues/${venueId}`);
+    revalidatePath("/club-owner/venues");
+    revalidatePath(`/club-owner/venues/${venueId}`);
 
     return { success: true };
   } catch (error) {
     console.error("Error in updateVenueDetails:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+// Club Owner specific actions
+export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
+  try {
+    const supabase = await createClient();
+    
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    const { data: venues, error } = await supabase
+      .from("venues")
+      .select(`
+        *,
+        venue_owners!inner (
+          id,
+          role,
+          user:users!inner (
+            id,
+            email,
+            is_active,
+            created_at,
+            profile:user_profiles (
+              first_name,
+              last_name,
+              username,
+              avatar_url
+            )
+          )
+        )
+      `)
+      .eq("venue_owners.user_id", user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching club owner venues:", error);
+      return { success: false, error: "Failed to fetch venues" };
+    }
+
+    // Get counts for each venue
+    const venuesWithCounts = await Promise.all(
+      (venues || []).map(async (venue) => {
+        const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
+          supabase
+            .from("events")
+            .select("id", { count: "exact" })
+            .eq("venue_id", venue.id),
+          supabase
+            .from("reviews")
+            .select("id", { count: "exact" })
+            .eq("venue_id", venue.id),
+          supabase
+            .from("venue_images")
+            .select("id", { count: "exact" })
+            .eq("venue_id", venue.id),
+        ]);
+
+        return {
+          ...venue,
+          _count: {
+            events: eventsCount.count || 0,
+            reviews: reviewsCount.count || 0,
+            venue_images: imagesCount.count || 0,
+          },
+        };
+      })
+    );
+
+    return { success: true, data: venuesWithCounts };
+  } catch (error) {
+    console.error("Error in getClubOwnerVenues:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function getClubOwnerVenueById(id: string): Promise<ActionResult<VenueData>> {
+  try {
+    const supabase = await createClient();
+    
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Check if user owns this venue
+    const { data: ownership, error: ownershipError } = await supabase
+      .from("venue_owners")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("venue_id", id)
+      .single();
+
+    if (ownershipError || !ownership) {
+      return { success: false, error: "Venue not found or access denied" };
+    }
+
+    const { data: venue, error } = await supabase
+      .from("venues")
+      .select(`
+        *,
+        venue_owners (
+          id,
+          role,
+          user:users (
+            id,
+            email,
+            is_active,
+            created_at,
+            profile:user_profiles (
+              first_name,
+              last_name,
+              username,
+              avatar_url
+            )
+          )
+        )
+      `)
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching venue:", error);
+      return { success: false, error: "Failed to fetch venue" };
+    }
+
+    if (!venue) {
+      return { success: false, error: "Venue not found" };
+    }
+
+    // Get counts
+    const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
+      supabase
+        .from("events")
+        .select("id", { count: "exact" })
+        .eq("venue_id", venue.id),
+      supabase
+        .from("reviews")
+        .select("id", { count: "exact" })
+        .eq("venue_id", venue.id),
+      supabase
+        .from("venue_images")
+        .select("id", { count: "exact" })
+        .eq("venue_id", venue.id),
+    ]);
+
+    const venueWithCounts = {
+      ...venue,
+      _count: {
+        events: eventsCount.count || 0,
+        reviews: reviewsCount.count || 0,
+        venue_images: imagesCount.count || 0,
+      },
+    };
+
+    return { success: true, data: venueWithCounts };
+  } catch (error) {
+    console.error("Error in getClubOwnerVenueById:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function createVenue(formData: FormData): Promise<ActionResult<{ id: string }>> {
+  try {
+    const supabase = await createClient();
+    
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Extract form data
+    const venueData = {
+      name: formData.get("name") as string,
+      description: formData.get("description") as string || null,
+      address: formData.get("address") as string,
+      city: formData.get("city") as string,
+      country: formData.get("country") as string,
+      latitude: formData.get("latitude") ? parseFloat(formData.get("latitude") as string) : null,
+      longitude: formData.get("longitude") ? parseFloat(formData.get("longitude") as string) : null,
+      phone: formData.get("phone") as string || null,
+      email: formData.get("email") as string || null,
+      website: formData.get("website") as string || null,
+      instagram: formData.get("instagram") as string || null,
+      facebook: formData.get("facebook") as string || null,
+      twitter: formData.get("twitter") as string || null,
+      venue_type: formData.get("venue_type") as string || null,
+      capacity: formData.get("capacity") ? parseInt(formData.get("capacity") as string) : null,
+      dress_code: formData.get("dress_code") as string || null,
+      age_restriction: formData.get("age_restriction") ? parseInt(formData.get("age_restriction") as string) : null,
+      price_range: formData.get("price_range") as string || null,
+      is_verified: false,
+      is_active: true,
+    };
+
+    // Create venue
+    const { data: venue, error } = await supabase
+      .from("venues")
+      .insert(venueData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error creating venue:", error);
+      return { success: false, error: "Failed to create venue" };
+    }
+
+    // Create venue owner relationship
+    const { error: ownerError } = await supabase
+      .from("venue_owners")
+      .insert({
+        user_id: user.id,
+        venue_id: venue.id,
+        role: "owner",
+      });
+
+    if (ownerError) {
+      console.error("Error creating venue owner relationship:", ownerError);
+      // Try to clean up the venue if owner relationship failed
+      await supabase.from("venues").delete().eq("id", venue.id);
+      return { success: false, error: "Failed to create venue ownership" };
+    }
+
+    revalidatePath("/club-owner/venues");
+
+    return { success: true, data: { id: venue.id } };
+  } catch (error) {
+    console.error("Error in createVenue:", error);
+    return { success: false, error: "An unexpected error occurred" };
+  }
+}
+
+export async function updateClubOwnerVenue(
+  venueId: string,
+  formData: FormData
+): Promise<ActionResult<void>> {
+  try {
+    const supabase = await createClient();
+    
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return { success: false, error: "Unauthorized" };
+    }
+
+    // Check if user owns this venue
+    const { data: ownership, error: ownershipError } = await supabase
+      .from("venue_owners")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("venue_id", venueId)
+      .single();
+
+    if (ownershipError || !ownership) {
+      return { success: false, error: "Venue not found or access denied" };
+    }
+
+    // Extract form data
+    const updates = {
+      name: formData.get("name") as string,
+      description: formData.get("description") as string || null,
+      address: formData.get("address") as string,
+      city: formData.get("city") as string,
+      country: formData.get("country") as string,
+      latitude: formData.get("latitude") ? parseFloat(formData.get("latitude") as string) : null,
+      longitude: formData.get("longitude") ? parseFloat(formData.get("longitude") as string) : null,
+      phone: formData.get("phone") as string || null,
+      email: formData.get("email") as string || null,
+      website: formData.get("website") as string || null,
+      instagram: formData.get("instagram") as string || null,
+      facebook: formData.get("facebook") as string || null,
+      twitter: formData.get("twitter") as string || null,
+      venue_type: formData.get("venue_type") as string || null,
+      capacity: formData.get("capacity") ? parseInt(formData.get("capacity") as string) : null,
+      dress_code: formData.get("dress_code") as string || null,
+      age_restriction: formData.get("age_restriction") ? parseInt(formData.get("age_restriction") as string) : null,
+      price_range: formData.get("price_range") as string || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase
+      .from("venues")
+      .update(updates)
+      .eq("id", venueId);
+
+    if (error) {
+      console.error("Error updating venue:", error);
+      return { success: false, error: "Failed to update venue" };
+    }
+
+    revalidatePath("/club-owner/venues");
+    revalidatePath(`/club-owner/venues/${venueId}`);
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error in updateClubOwnerVenue:", error);
     return { success: false, error: "An unexpected error occurred" };
   }
 }
