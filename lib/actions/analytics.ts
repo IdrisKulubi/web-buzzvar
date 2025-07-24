@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { getUserRoleByEmail } from "@/lib/utils/permissions";
 
 export interface SystemMetrics {
   totalUsers: number;
@@ -57,13 +58,8 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
   }
 
   // Check if user is super admin
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
@@ -73,14 +69,14 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
       .from("users")
       .select("*", { count: "exact", head: true });
 
-    // Get active users (logged in within last 30 days)
+    // Get active users (last_login column doesn't exist, so use created_at as proxy)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const { count: activeUsers } = await supabase
       .from("users")
       .select("*", { count: "exact", head: true })
-      .gte("last_login", thirtyDaysAgo.toISOString());
+      .gte("created_at", thirtyDaysAgo.toISOString());
 
     // Get new users (created within last 30 days)
     const { count: newUsers } = await supabase
@@ -93,20 +89,19 @@ export async function getSystemMetrics(): Promise<SystemMetrics> {
       .from("venues")
       .select("*", { count: "exact", head: true });
 
-    // Get active venues
+    // Get active venues (is_active column doesn't exist, so count all venues)
     const { count: activeVenues } = await supabase
       .from("venues")
-      .select("*", { count: "exact", head: true })
-      .eq("is_active", true);
+      .select("*", { count: "exact", head: true });
 
     // Get total events
     const { count: totalEvents } = await supabase
       .from("events")
       .select("*", { count: "exact", head: true });
 
-    // Get total interactions
+    // Get total interactions (using reviews as proxy since user_interactions doesn't exist)
     const { count: totalInteractions } = await supabase
-      .from("user_interactions")
+      .from("reviews")
       .select("*", { count: "exact", head: true });
 
     // Get total reviews
@@ -139,30 +134,29 @@ export async function getUserGrowthData(days: number = 30): Promise<UserGrowthDa
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
   try {
-    // Get system analytics data for the specified period
+    // Since system_analytics doesn't exist, return mock data for now
+    const data: UserGrowthData[] = [];
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const { data: analyticsData, error } = await supabase
-      .from("system_analytics")
-      .select("date, total_users, new_users, active_users")
-      .gte("date", startDate.toISOString().split('T')[0])
-      .order("date", { ascending: true });
+    for (let i = 0; i < days; i++) {
+      const date = new Date();
+      date.setDate(date.getDate() - (days - 1 - i));
+      data.push({
+        date: date.toISOString().split('T')[0],
+        totalUsers: 0,
+        newUsers: 0,
+        activeUsers: 0,
+      });
+    }
 
-    if (error) throw error;
-
-    return analyticsData || [];
+    return data;
   } catch (error) {
     console.error("Error fetching user growth data:", error);
     return [];
@@ -178,42 +172,21 @@ export async function getVenueActivityData(days: number = 30): Promise<VenueActi
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
   try {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
-
-    // Get venue analytics aggregated by date
-    const { data: venueData, error } = await supabase
-      .from("venue_analytics")
-      .select("date")
-      .gte("date", startDate.toISOString().split('T')[0])
-      .order("date", { ascending: true });
-
-    if (error) throw error;
-
-    // Group by date and calculate metrics
-    const dateMap = new Map<string, { totalVenues: number; activeVenues: number; newVenues: number }>();
+    // Since venue_analytics doesn't exist, calculate from venues table directly
+    const data: VenueActivityData[] = [];
     
     // Initialize all dates in range
     for (let i = 0; i < days; i++) {
       const date = new Date();
       date.setDate(date.getDate() - (days - 1 - i));
       const dateStr = date.toISOString().split('T')[0];
-      dateMap.set(dateStr, { totalVenues: 0, activeVenues: 0, newVenues: 0 });
-    }
-
-    // Get venue counts for each date
-    for (const [dateStr] of dateMap) {
+      
       const { count: totalVenues } = await supabase
         .from("venues")
         .select("*", { count: "exact", head: true })
@@ -222,7 +195,6 @@ export async function getVenueActivityData(days: number = 30): Promise<VenueActi
       const { count: activeVenues } = await supabase
         .from("venues")
         .select("*", { count: "exact", head: true })
-        .eq("is_active", true)
         .lte("created_at", `${dateStr}T23:59:59`);
 
       const { count: newVenues } = await supabase
@@ -231,17 +203,15 @@ export async function getVenueActivityData(days: number = 30): Promise<VenueActi
         .gte("created_at", `${dateStr}T00:00:00`)
         .lte("created_at", `${dateStr}T23:59:59`);
 
-      dateMap.set(dateStr, {
+      data.push({
+        date: dateStr,
         totalVenues: totalVenues || 0,
         activeVenues: activeVenues || 0,
         newVenues: newVenues || 0,
       });
     }
 
-    return Array.from(dateMap.entries()).map(([date, data]) => ({
-      date,
-      ...data,
-    }));
+    return data;
   } catch (error) {
     console.error("Error fetching venue activity data:", error);
     return [];
@@ -257,29 +227,24 @@ export async function getInteractionData(days: number = 30): Promise<Interaction
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
   try {
+    // Since user_interactions doesn't exist, use reviews as proxy data
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Get interactions grouped by date and type
-    const { data: interactions, error } = await supabase
-      .from("user_interactions")
-      .select("created_at, interaction_type")
+    const { data: reviews, error } = await supabase
+      .from("reviews")
+      .select("created_at")
       .gte("created_at", startDate.toISOString());
 
     if (error) throw error;
 
-    // Group interactions by date
+    // Group reviews by date
     const dateMap = new Map<string, InteractionData>();
     
     // Initialize all dates in range
@@ -297,28 +262,12 @@ export async function getInteractionData(days: number = 30): Promise<Interaction
       });
     }
 
-    // Count interactions by type and date
-    interactions?.forEach((interaction) => {
-      const date = interaction.created_at.split('T')[0];
+    // Count reviews by date
+    reviews?.forEach((review) => {
+      const date = review.created_at.split('T')[0];
       const existing = dateMap.get(date);
       if (existing) {
-        switch (interaction.interaction_type) {
-          case 'like':
-            existing.likes++;
-            break;
-          case 'save':
-            existing.saves++;
-            break;
-          case 'share':
-            existing.shares++;
-            break;
-          case 'check_in':
-            existing.checkIns++;
-            break;
-          case 'review':
-            existing.reviews++;
-            break;
-        }
+        existing.reviews++;
       }
     });
 
@@ -338,41 +287,29 @@ export async function getTopVenues(limit: number = 10): Promise<TopVenuesData[]>
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
   try {
-    // Get venues with their analytics data
+    // Get venues with their reviews (since venue_analytics doesn't exist)
     const { data: venues, error } = await supabase
       .from("venues")
       .select(`
         id,
         name,
-        city,
-        venue_analytics (
-          views,
-          likes
-        ),
         reviews (
           rating
         )
       `)
-      .eq("is_active", true)
+
       .limit(limit);
 
     if (error) throw error;
 
     // Calculate aggregated metrics for each venue
     const topVenues = venues?.map((venue) => {
-      const totalViews = venue.venue_analytics?.reduce((sum: number, analytics: any) => sum + (analytics.views || 0), 0) || 0;
-      const totalLikes = venue.venue_analytics?.reduce((sum: number, analytics: any) => sum + (analytics.likes || 0), 0) || 0;
       const reviews = venue.reviews || [];
       const averageRating = reviews.length > 0 
         ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length 
@@ -381,17 +318,17 @@ export async function getTopVenues(limit: number = 10): Promise<TopVenuesData[]>
       return {
         id: venue.id,
         name: venue.name,
-        city: venue.city,
-        totalViews,
-        totalLikes,
+        city: "Unknown", // City column doesn't exist in actual database
+        totalViews: 0, // No analytics data available
+        totalLikes: 0, // No analytics data available
         averageRating: Math.round(averageRating * 10) / 10,
         reviewCount: reviews.length,
       };
     }) || [];
 
-    // Sort by total views and return top venues
+    // Sort by review count since we don't have views data
     return topVenues
-      .sort((a, b) => b.totalViews - a.totalViews)
+      .sort((a, b) => b.reviewCount - a.reviewCount)
       .slice(0, limit);
   } catch (error) {
     console.error("Error fetching top venues:", error);

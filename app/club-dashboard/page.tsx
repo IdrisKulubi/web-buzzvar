@@ -257,7 +257,7 @@ export default async function ClubOwnerDashboard() {
           </CardHeader>
           <CardContent>
             <Button asChild variant="outline">
-              <Link href="/super-admin">
+              <Link href="/super-dashboard">
                 <Shield className="mr-2 h-4 w-4" />
                 Return to Super Admin Dashboard
               </Link>

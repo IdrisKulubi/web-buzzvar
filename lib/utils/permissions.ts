@@ -8,30 +8,33 @@ export async function getUserRole(userId: string): Promise<UserRole> {
   try {
     // Get user email first
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) return null;
+    if (userError || !user || !user.email) {
+      console.log("No authenticated user found");
+      return null;
+    }
+
+    console.log("Checking role for user:", user.email);
 
     // Check if user is super admin based on email
-    const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-    if (superAdminEmails.includes(user.email || '')) {
+    const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim().toLowerCase()) || [];
+    console.log("Super admin emails from env:", superAdminEmails);
+    
+    if (superAdminEmails.includes(user.email.toLowerCase())) {
+      console.log("User is super admin");
       return "super_admin";
     }
 
     // Check if user is admin based on email
-    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-    if (adminEmails.includes(user.email || '')) {
+    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim().toLowerCase()) || [];
+    console.log("Admin emails from env:", adminEmails);
+    
+    if (adminEmails.includes(user.email.toLowerCase())) {
+      console.log("User is admin");
       return "admin";
     }
 
-    // Check if user is an admin user in database
-    const { data: adminUser, error: adminError } = await supabase
-      .from("admin_users")
-      .select("role")
-      .eq("user_id", userId)
-      .single();
-
-    if (!adminError && adminUser) {
-      return adminUser.role as UserRole;
-    }
+    // admin_users table doesn't exist, so skip database role check
+    console.log("admin_users table doesn't exist, skipping database role check");
 
     // Check if user is a venue owner
     const { data: venueOwner, error: venueError } = await supabase
@@ -41,9 +44,11 @@ export async function getUserRole(userId: string): Promise<UserRole> {
       .single();
 
     if (!venueError && venueOwner) {
+      console.log("User is venue owner");
       return "club_owner";
     }
 
+    console.log("No role found for user");
     return null;
   } catch (error) {
     console.error("Error getting user role:", error);
@@ -53,14 +58,14 @@ export async function getUserRole(userId: string): Promise<UserRole> {
 
 export async function getUserRoleByEmail(email: string): Promise<UserRole> {
   // Check if user is super admin based on email
-  const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-  if (superAdminEmails.includes(email)) {
+  const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+  if (superAdminEmails.includes(email.toLowerCase())) {
     return "super_admin";
   }
 
   // Check if user is admin based on email
-  const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(email => email.trim()) || [];
-  if (adminEmails.includes(email)) {
+  const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+  if (adminEmails.includes(email.toLowerCase())) {
     return "admin";
   }
 
@@ -76,16 +81,7 @@ export async function getUserRoleByEmail(email: string): Promise<UserRole> {
 
     if (userError || !users) return null;
 
-    // Check database roles
-    const { data: adminUser, error: adminError } = await supabase
-      .from("admin_users")
-      .select("role")
-      .eq("user_id", users.id)
-      .single();
-
-    if (!adminError && adminUser) {
-      return adminUser.role as UserRole;
-    }
+    // admin_users table doesn't exist, so skip database role check
 
     const { data: venueOwner, error: venueError } = await supabase
       .from("venue_owners")
@@ -107,7 +103,7 @@ export async function getUserRoleByEmail(email: string): Promise<UserRole> {
 export function hasPermission(userRole: UserRole, requiredRole: UserRole): boolean {
   if (!userRole || !requiredRole) return false;
 
-  const roleHierarchy: Record<UserRole, number> = {
+  const roleHierarchy: Record<string, number> = {
     super_admin: 4,
     admin: 3,
     moderator: 2,
@@ -118,7 +114,7 @@ export function hasPermission(userRole: UserRole, requiredRole: UserRole): boole
 }
 
 export function getRoleDisplayName(role: UserRole): string {
-  const roleNames: Record<UserRole, string> = {
+  const roleNames: Record<string, string> = {
     super_admin: "Super Admin",
     admin: "Admin",
     moderator: "Moderator", 
@@ -129,7 +125,7 @@ export function getRoleDisplayName(role: UserRole): string {
 }
 
 export function getRoleColor(role: UserRole): string {
-  const roleColors: Record<UserRole, string> = {
+  const roleColors: Record<string, string> = {
     super_admin: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
     admin: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
     moderator: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",

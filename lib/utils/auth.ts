@@ -24,15 +24,19 @@ export async function getCurrentUser() {
 export async function getUserRole(userId: string): Promise<UserRole | null> {
   const supabase = await createClient()
   
-  // Check if super admin
-  const { data: adminUser } = await supabase
-    .from('admin_users')
-    .select('role')
-    .eq('user_id', userId)
-    .single()
-  
-  if (adminUser) {
-    return adminUser.role as UserRole
+  // admin_users table doesn't exist, so use email-based role checking
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user && user.email) {
+    const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+    const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+    const userEmail = user.email.toLowerCase();
+    
+    if (superAdminEmails.includes(userEmail)) {
+      return 'super_admin';
+    }
+    if (adminEmails.includes(userEmail)) {
+      return 'admin';
+    }
   }
   
   // Check if club owner

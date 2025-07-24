@@ -3,13 +3,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getUserRoleByEmail } from "@/lib/utils/permissions";
 
 export interface UserData {
   id: string;
   email: string;
   phone?: string;
   created_at: string;
-  updated_at: string;
+  updated_at: string; // Using created_at as fallback since updated_at doesn't exist
   last_login?: string;
   is_active: boolean;
   auth_provider: string;
@@ -56,13 +57,8 @@ export async function getUsers(
   }
 
   // Check if user is super admin
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
@@ -72,45 +68,22 @@ export async function getUsers(
       .select(`
         id,
         email,
-        phone,
-        created_at,
-        updated_at,
-        last_login,
-        is_active,
-        auth_provider,
-        auth_provider_id,
-        user_profiles (
-          first_name,
-          last_name,
-          username,
-          bio,
-          avatar_url,
-          date_of_birth,
-          gender,
-          location_city,
-          location_country
-        ),
-        admin_users (
-          role,
-          permissions
-        ),
-        venue_owners (
-          role
-        )
+        created_at
       `, { count: "exact" });
 
     // Apply filters
     if (filters.search) {
-      query = query.or(`email.ilike.%${filters.search}%,user_profiles.first_name.ilike.%${filters.search}%,user_profiles.last_name.ilike.%${filters.search}%,user_profiles.username.ilike.%${filters.search}%`);
+      query = query.ilike("email", `%${filters.search}%`);
     }
 
-    if (filters.status && filters.status !== "all") {
-      query = query.eq("is_active", filters.status === "active");
-    }
+    // Status and auth_provider filters disabled since columns don't exist
+    // if (filters.status && filters.status !== "all") {
+    //   query = query.eq("is_active", filters.status === "active");
+    // }
 
-    if (filters.auth_provider && filters.auth_provider !== "all") {
-      query = query.eq("auth_provider", filters.auth_provider);
-    }
+    // if (filters.auth_provider && filters.auth_provider !== "all") {
+    //   query = query.eq("auth_provider", filters.auth_provider);
+    // }
 
     // Apply pagination
     const from = (page - 1) * pageSize;
@@ -126,32 +99,40 @@ export async function getUsers(
     const transformedUsers: UserData[] = (users || []).map((user: any) => ({
       id: user.id,
       email: user.email,
-      phone: user.phone,
+      phone: null, // phone column doesn't exist
       created_at: user.created_at,
-      updated_at: user.updated_at,
-      last_login: user.last_login,
-      is_active: user.is_active,
-      auth_provider: user.auth_provider,
-      auth_provider_id: user.auth_provider_id,
-      profile: user.user_profiles?.[0] || null,
-      admin_role: user.admin_users?.[0] || null,
-      venue_owner: user.venue_owners?.[0] ? {
-        role: user.venue_owners[0].role,
-        venue_count: user.venue_owners.length
-      } : null,
+      updated_at: user.created_at, // updated_at column doesn't exist, use created_at
+      last_login: null, // last_login column doesn't exist
+      is_active: true, // is_active column doesn't exist, default to true
+      auth_provider: "email", // auth_provider column doesn't exist, default to email
+      auth_provider_id: null, // auth_provider_id column doesn't exist
+      profile: null,
+      admin_role: null, // admin_users table doesn't exist
+      venue_owner: null, // venue_owners relationship has RLS policy issues
     }));
 
-    // Apply role filter (needs to be done after data transformation)
+    // Apply role filter (admin_users table doesn't exist, so use email-based roles)
     let filteredUsers = transformedUsers;
     if (filters.role && filters.role !== "all") {
       filteredUsers = transformedUsers.filter(user => {
-        if (filters.role === "user") {
-          return !user.admin_role && !user.venue_owner;
+        // Get role from email configuration
+        const superAdminEmails = process.env.SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+        const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+        const userEmail = user.email.toLowerCase();
+        
+        if (filters.role === "super_admin") {
+          return superAdminEmails.includes(userEmail);
+        }
+        if (filters.role === "admin") {
+          return adminEmails.includes(userEmail) && !superAdminEmails.includes(userEmail);
         }
         if (filters.role === "club_owner") {
           return user.venue_owner;
         }
-        return user.admin_role?.role === filters.role;
+        if (filters.role === "user") {
+          return !superAdminEmails.includes(userEmail) && !adminEmails.includes(userEmail) && !user.venue_owner;
+        }
+        return false;
       });
     }
 
@@ -174,13 +155,8 @@ export async function getUserById(userId: string): Promise<UserData | null> {
     redirect("/login");
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     redirect("/unauthorized");
   }
 
@@ -190,31 +166,7 @@ export async function getUserById(userId: string): Promise<UserData | null> {
       .select(`
         id,
         email,
-        phone,
-        created_at,
-        updated_at,
-        last_login,
-        is_active,
-        auth_provider,
-        auth_provider_id,
-        user_profiles (
-          first_name,
-          last_name,
-          username,
-          bio,
-          avatar_url,
-          date_of_birth,
-          gender,
-          location_city,
-          location_country
-        ),
-        admin_users (
-          role,
-          permissions
-        ),
-        venue_owners (
-          role
-        )
+        created_at
       `)
       .eq("id", userId)
       .single();
@@ -225,19 +177,16 @@ export async function getUserById(userId: string): Promise<UserData | null> {
     return {
       id: userData.id,
       email: userData.email,
-      phone: userData.phone,
+      phone: null, // phone column doesn't exist
       created_at: userData.created_at,
-      updated_at: userData.updated_at,
-      last_login: userData.last_login,
-      is_active: userData.is_active,
-      auth_provider: userData.auth_provider,
-      auth_provider_id: userData.auth_provider_id,
-      profile: userData.user_profiles?.[0] || null,
-      admin_role: userData.admin_users?.[0] || null,
-      venue_owner: userData.venue_owners?.[0] ? {
-        role: userData.venue_owners[0].role,
-        venue_count: userData.venue_owners.length
-      } : null,
+      updated_at: userData.created_at, // updated_at column doesn't exist, use created_at
+      last_login: null, // last_login column doesn't exist
+      is_active: true, // is_active column doesn't exist, default to true
+      auth_provider: "email", // auth_provider column doesn't exist, default to email
+      auth_provider_id: null, // auth_provider_id column doesn't exist
+      profile: null,
+      admin_role: null, // admin_users table doesn't exist
+      venue_owner: null, // venue_owners relationship has RLS policy issues
     };
   } catch (error) {
     console.error("Error fetching user:", error);
@@ -254,24 +203,15 @@ export async function toggleUserStatus(userId: string, isActive: boolean): Promi
     return { success: false, error: "Authentication required" };
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     return { success: false, error: "Insufficient permissions" };
   }
 
   try {
-    const { error } = await supabase
-      .from("users")
-      .update({ 
-        is_active: isActive,
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", userId);
+    // is_active column doesn't exist, so this function is disabled
+    console.log("toggleUserStatus called but is_active column doesn't exist");
+    return { success: false, error: "User status toggle not available - is_active column doesn't exist" };
 
     if (error) throw error;
 
@@ -295,13 +235,8 @@ export async function deleteUser(userId: string): Promise<{ success: boolean; er
     return { success: false, error: "Authentication required" };
   }
 
-  const { data: adminUser } = await supabase
-    .from("admin_users")
-    .select("role")
-    .eq("user_id", user.id)
-    .single();
-
-  if (!adminUser || adminUser.role !== "super_admin") {
+  const userRole = await getUserRoleByEmail(user.email || '');
+  if (userRole !== "super_admin") {
     return { success: false, error: "Insufficient permissions" };
   }
 

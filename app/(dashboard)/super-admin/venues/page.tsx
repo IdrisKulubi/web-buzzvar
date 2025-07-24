@@ -7,17 +7,18 @@ import { LoadingSpinner } from "@/components/common/loading-spinner";
 import { Building2, CheckCircle, XCircle, Play, Pause } from "lucide-react";
 
 interface VenuesPageProps {
-  searchParams: {
+  searchParams: Promise<{
     search?: string;
     verification?: string;
     status?: string;
     venueType?: string;
     city?: string;
     country?: string;
-  };
+  }>;
 }
 
 async function VenuesContent({ searchParams }: VenuesPageProps) {
+  const resolvedSearchParams = await searchParams;
   const result = await getVenues();
 
   if (!result.success) {
@@ -33,34 +34,28 @@ async function VenuesContent({ searchParams }: VenuesPageProps) {
 
   const venues = result.data;
 
-  // Extract unique cities and countries for filters
-  const cities = Array.from(new Set(venues.map(v => v.city))).sort();
-  const countries = Array.from(new Set(venues.map(v => v.country))).sort();
+  // Extract unique cities and countries for filters (columns don't exist in actual DB)
+  const cities: string[] = [];
+  const countries: string[] = [];
 
   // Apply filters
   const filters: VenueFilters = {
-    search: searchParams.search || "",
-    verification: (searchParams.verification as any) || "all",
-    status: (searchParams.status as any) || "all",
-    venueType: (searchParams.venueType as any) || "all",
-    city: searchParams.city || "",
-    country: searchParams.country || "",
+    search: resolvedSearchParams.search || "",
+    verification: (resolvedSearchParams.verification as any) || "all",
+    status: (resolvedSearchParams.status as any) || "all",
+    venueType: (resolvedSearchParams.venueType as any) || "all",
+    city: resolvedSearchParams.city || "",
+    country: resolvedSearchParams.country || "",
   };
 
   const filteredVenues = venues.filter(venue => {
     // Search filter
     if (filters.search) {
       const searchTerm = filters.search.toLowerCase();
-      const ownerName = venue.venue_owners.find(vo => vo.role === 'owner')?.user.profile?.first_name || "";
-      const ownerLastName = venue.venue_owners.find(vo => vo.role === 'owner')?.user.profile?.last_name || "";
       const ownerEmail = venue.venue_owners.find(vo => vo.role === 'owner')?.user.email || "";
       
       const matchesSearch = 
         venue.name.toLowerCase().includes(searchTerm) ||
-        venue.city.toLowerCase().includes(searchTerm) ||
-        venue.country.toLowerCase().includes(searchTerm) ||
-        ownerName.toLowerCase().includes(searchTerm) ||
-        ownerLastName.toLowerCase().includes(searchTerm) ||
         ownerEmail.toLowerCase().includes(searchTerm);
       
       if (!matchesSearch) return false;
@@ -72,22 +67,20 @@ async function VenuesContent({ searchParams }: VenuesPageProps) {
       if (filters.verification === "unverified" && venue.is_verified) return false;
     }
 
-    // Status filter
-    if (filters.status !== "all") {
-      if (filters.status === "active" && !venue.is_active) return false;
-      if (filters.status === "inactive" && venue.is_active) return false;
-    }
+    // Status filter (is_active column doesn't exist, so skip this filter)
+    // if (filters.status !== "all") {
+    //   if (filters.status === "active" && !venue.is_active) return false;
+    //   if (filters.status === "inactive" && venue.is_active) return false;
+    // }
 
     // Venue type filter
     if (filters.venueType !== "all") {
       if (venue.venue_type !== filters.venueType) return false;
     }
 
-    // Country filter
-    if (filters.country && venue.country !== filters.country) return false;
-
-    // City filter
-    if (filters.city && venue.city !== filters.city) return false;
+    // Country and city filters disabled (columns don't exist in actual DB)
+    // if (filters.country && venue.country !== filters.country) return false;
+    // if (filters.city && venue.city !== filters.city) return false;
 
     return true;
   });
@@ -97,8 +90,8 @@ async function VenuesContent({ searchParams }: VenuesPageProps) {
     total: venues.length,
     verified: venues.filter(v => v.is_verified).length,
     unverified: venues.filter(v => !v.is_verified).length,
-    active: venues.filter(v => v.is_active).length,
-    inactive: venues.filter(v => !v.is_active).length,
+    active: venues.length, // is_active column doesn't exist, so all venues are considered active
+    inactive: 0, // is_active column doesn't exist
   };
 
   return (
@@ -171,7 +164,6 @@ async function VenuesContent({ searchParams }: VenuesPageProps) {
       {/* Filters */}
       <VenueFiltersComponent
         filters={filters}
-        onFiltersChange={() => {}} // This would be handled by URL params in a real implementation
         cities={cities}
         countries={countries}
       />
@@ -192,7 +184,7 @@ async function VenuesContent({ searchParams }: VenuesPageProps) {
   );
 }
 
-export default function VenuesPage({ searchParams }: VenuesPageProps) {
+export default async function VenuesPage({ searchParams }: VenuesPageProps) {
   return (
     <div className="container mx-auto py-6">
       <div className="flex items-center justify-between mb-6">

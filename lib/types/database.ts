@@ -6,7 +6,6 @@ export interface User {
   created_at: string
   updated_at: string
   last_login?: string
-  is_active: boolean
   auth_provider: string
   auth_provider_id?: string
 }

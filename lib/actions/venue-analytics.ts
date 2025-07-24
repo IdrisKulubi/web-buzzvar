@@ -208,12 +208,7 @@ export async function getVenueRecentActivity(
       .select(`
         *,
         user:users (
-          profile:user_profiles (
-            first_name,
-            last_name,
-            username,
-            avatar_url
-          )
+          email
         )
       `)
       .eq("venue_id", venueId)
@@ -263,12 +258,7 @@ export async function getVenueTopReviews(
       .select(`
         *,
         user:users (
-          profile:user_profiles (
-            first_name,
-            last_name,
-            username,
-            avatar_url
-          )
+          email
         )
       `)
       .eq("venue_id", venueId)
@@ -336,8 +326,7 @@ export async function getVenuePerformanceMetrics(
       supabase
         .from("events")
         .select("id", { count: "exact" })
-        .eq("venue_id", venueId)
-        .eq("is_active", true),
+        .eq("venue_id", venueId),
       supabase
         .from("promotions")
         .select("id", { count: "exact" })
@@ -345,13 +334,11 @@ export async function getVenuePerformanceMetrics(
       supabase
         .from("promotions")
         .select("id", { count: "exact" })
-        .eq("venue_id", venueId)
-        .eq("is_active", true),
+        .eq("venue_id", venueId),
       supabase
         .from("venue_images")
         .select("id", { count: "exact" })
-        .eq("venue_id", venueId)
-        .eq("is_active", true),
+        .eq("venue_id", venueId),
       supabase
         .from("reviews")
         .select("rating")

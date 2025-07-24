@@ -10,7 +10,7 @@ export interface VenueData extends Venue {
     id: string;
     role: string;
     user: User & {
-      profile: UserProfile | null;
+      profile?: UserProfile;
     };
   }>;
   _count?: {
@@ -18,6 +18,7 @@ export interface VenueData extends Venue {
     reviews: number;
     venue_images: number;
   };
+  [key: string]: unknown;
 }
 
 export async function getVenues(): Promise<ActionResult<VenueData[]>> {
@@ -34,14 +35,7 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
           user:users!inner (
             id,
             email,
-            is_active,
-            created_at,
-            profile:user_profiles (
-              first_name,
-              last_name,
-              username,
-              avatar_url
-            )
+            created_at
           )
         )
       `)
@@ -52,7 +46,22 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
       return { success: false, error: "Failed to fetch venues" };
     }
 
-    // Get counts for each venue
+    // Get user profiles for all venue owners
+    const userIds = venues?.flatMap(venue => 
+      venue.venue_owners.map(owner => owner.user.id)
+    ) || [];
+
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("user_id, first_name, last_name, username, avatar_url")
+      .in("user_id", userIds);
+
+    // Create a map of user profiles
+    const profileMap = new Map(
+      profiles?.map(profile => [profile.user_id, profile]) || []
+    );
+
+    // Get counts for each venue and attach profiles
     const venuesWithCounts = await Promise.all(
       (venues || []).map(async (venue) => {
         const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
@@ -70,8 +79,18 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
             .eq("venue_id", venue.id),
         ]);
 
+        // Attach profiles to venue owners
+        const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
+          ...owner,
+          user: {
+            ...owner.user,
+            profile: profileMap.get(owner.user.id) || null
+          }
+        }));
+
         return {
           ...venue,
+          venue_owners: venueOwnersWithProfiles,
           _count: {
             events: eventsCount.count || 0,
             reviews: reviewsCount.count || 0,
@@ -102,14 +121,7 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
           user:users (
             id,
             email,
-            is_active,
-            created_at,
-            profile:user_profiles (
-              first_name,
-              last_name,
-              username,
-              avatar_url
-            )
+            created_at
           )
         )
       `)
@@ -124,6 +136,27 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
     if (!venue) {
       return { success: false, error: "Venue not found" };
     }
+
+    // Get user profiles for venue owners
+    const userIds = venue.venue_owners.map(owner => owner.user.id);
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("user_id, first_name, last_name, username, avatar_url")
+      .in("user_id", userIds);
+
+    // Create a map of user profiles
+    const profileMap = new Map(
+      profiles?.map(profile => [profile.user_id, profile]) || []
+    );
+
+    // Attach profiles to venue owners
+    const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
+      ...owner,
+      user: {
+        ...owner.user,
+        profile: profileMap.get(owner.user.id) || null
+      }
+    }));
 
     // Get counts
     const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
@@ -143,6 +176,7 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
 
     const venueWithCounts = {
       ...venue,
+      venue_owners: venueOwnersWithProfiles,
       _count: {
         events: eventsCount.count || 0,
         reviews: reviewsCount.count || 0,
@@ -192,25 +226,9 @@ export async function toggleVenueStatus(
   isActive: boolean
 ): Promise<ActionResult<void>> {
   try {
-    const supabase = await createClient();
-
-    const { error } = await supabase
-      .from("venues")
-      .update({
-        is_active: isActive,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", venueId);
-
-    if (error) {
-      console.error("Error updating venue status:", error);
-      return { success: false, error: "Failed to update venue status" };
-    }
-
-    revalidatePath("/super-admin/venues");
-    revalidatePath(`/super-admin/venues/${venueId}`);
-
-    return { success: true };
+    // is_active column doesn't exist in the actual database
+    console.log("toggleVenueStatus called but is_active column doesn't exist");
+    return { success: false, error: "Venue status toggle is not available - is_active column doesn't exist" };
   } catch (error) {
     console.error("Error in toggleVenueStatus:", error);
     return { success: false, error: "An unexpected error occurred" };
@@ -221,12 +239,11 @@ export async function deleteVenue(venueId: string): Promise<ActionResult<void>> 
   try {
     const supabase = await createClient();
 
-    // Check if venue has active events
+    // Check if venue has active events (is_active column may not exist)
     const { data: activeEvents, error: eventsError } = await supabase
       .from("events")
       .select("id")
       .eq("venue_id", venueId)
-      .eq("is_active", true)
       .limit(1);
 
     if (eventsError) {
@@ -314,14 +331,7 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
           user:users!inner (
             id,
             email,
-            is_active,
-            created_at,
-            profile:user_profiles (
-              first_name,
-              last_name,
-              username,
-              avatar_url
-            )
+            created_at
           )
         )
       `)
@@ -333,7 +343,22 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
       return { success: false, error: "Failed to fetch venues" };
     }
 
-    // Get counts for each venue
+    // Get user profiles for all venue owners
+    const userIds = venues?.flatMap(venue => 
+      venue.venue_owners.map(owner => owner.user.id)
+    ) || [];
+
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("user_id, first_name, last_name, username, avatar_url")
+      .in("user_id", userIds);
+
+    // Create a map of user profiles
+    const profileMap = new Map(
+      profiles?.map(profile => [profile.user_id, profile]) || []
+    );
+
+    // Get counts for each venue and attach profiles
     const venuesWithCounts = await Promise.all(
       (venues || []).map(async (venue) => {
         const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
@@ -351,8 +376,18 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
             .eq("venue_id", venue.id),
         ]);
 
+        // Attach profiles to venue owners
+        const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
+          ...owner,
+          user: {
+            ...owner.user,
+            profile: profileMap.get(owner.user.id) || null
+          }
+        }));
+
         return {
           ...venue,
+          venue_owners: venueOwnersWithProfiles,
           _count: {
             events: eventsCount.count || 0,
             reviews: reviewsCount.count || 0,
@@ -401,14 +436,7 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
           user:users (
             id,
             email,
-            is_active,
-            created_at,
-            profile:user_profiles (
-              first_name,
-              last_name,
-              username,
-              avatar_url
-            )
+            created_at
           )
         )
       `)
@@ -423,6 +451,27 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
     if (!venue) {
       return { success: false, error: "Venue not found" };
     }
+
+    // Get user profiles for venue owners
+    const userIds = venue.venue_owners.map(owner => owner.user.id);
+    const { data: profiles } = await supabase
+      .from("user_profiles")
+      .select("user_id, first_name, last_name, username, avatar_url")
+      .in("user_id", userIds);
+
+    // Create a map of user profiles
+    const profileMap = new Map(
+      profiles?.map(profile => [profile.user_id, profile]) || []
+    );
+
+    // Attach profiles to venue owners
+    const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
+      ...owner,
+      user: {
+        ...owner.user,
+        profile: profileMap.get(owner.user.id) || null
+      }
+    }));
 
     // Get counts
     const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
@@ -442,6 +491,7 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
 
     const venueWithCounts = {
       ...venue,
+      venue_owners: venueOwnersWithProfiles,
       _count: {
         events: eventsCount.count || 0,
         reviews: reviewsCount.count || 0,

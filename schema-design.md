@@ -1,11 +1,13 @@
 # BuzzVar Database Schema Design
 
 ## Overview
+
 This document outlines the complete database schema for the BuzzVar platform, supporting both the mobile app and the upcoming Next.js admin/club owner web application. The web application will communicate with the same database as the mobile app, ensuring data consistency across platforms.
 
 ## Core Entities
 
 ### 1. Users Table
+
 Primary user authentication and profile information.
 
 ```sql
@@ -23,6 +25,7 @@ users (
 ```
 
 ### 2. User Profiles Table
+
 Extended user information for mobile app users.
 
 ```sql
@@ -46,6 +49,7 @@ user_profiles (
 ```
 
 ### 3. Admin Users Table
+
 Admin-specific user information for web dashboard.
 
 ```sql
@@ -60,6 +64,7 @@ admin_users (
 ```
 
 ### 4. Venues Table
+
 Club/venue information managed by club owners.
 
 ```sql
@@ -95,6 +100,7 @@ venues (
 ```
 
 ### 5. Venue Owners Table
+
 Relationship between users and venues they manage.
 
 ```sql
@@ -110,6 +116,7 @@ venue_owners (
 ```
 
 ### 6. Events Table
+
 Events/parties at venues.
 
 ```sql
@@ -137,6 +144,7 @@ events (
 ```
 
 ### 7. Promotions Table
+
 Marketing promotions for venues.
 
 ```sql
@@ -166,6 +174,7 @@ promotions (
 ```
 
 ### 8. User Interactions Table
+
 Track user engagement with venues/events.
 
 ```sql
@@ -181,6 +190,7 @@ user_interactions (
 ```
 
 ### 9. Reviews Table
+
 User reviews for venues.
 
 ```sql
@@ -202,6 +212,7 @@ reviews (
 ### 10. Analytics Tables
 
 #### User Analytics
+
 ```sql
 user_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -218,6 +229,7 @@ user_analytics (
 ```
 
 #### Venue Analytics
+
 ```sql
 venue_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -236,6 +248,7 @@ venue_analytics (
 ```
 
 #### System Analytics
+
 ```sql
 system_analytics (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -253,6 +266,7 @@ system_analytics (
 ```
 
 ### 11. Notifications Table
+
 Push notifications and in-app messages.
 
 ```sql
@@ -273,6 +287,7 @@ notifications (
 ```
 
 ### 12. User Sessions Table
+
 Track user sessions for analytics.
 
 ```sql
@@ -290,6 +305,7 @@ user_sessions (
 ```
 
 ### 13. Venue Images Table
+
 Multiple images for venues.
 
 ```sql
@@ -306,6 +322,7 @@ venue_images (
 ```
 
 ### 14. Saved Venues Table
+
 User's saved/favorite venues.
 
 ```sql
@@ -319,6 +336,7 @@ saved_venues (
 ```
 
 ### 15. Report System Table
+
 User reports for content moderation.
 
 ```sql
@@ -382,18 +400,21 @@ CREATE INDEX idx_user_interactions_type ON user_interactions(interaction_type);
 ## Admin Dashboard Features Supported
 
 ### Super Admin Features:
+
 - View all system analytics
 - Manage admin users
 - Moderate content (venues, reviews, users)
 - System configuration
 
 ### Admin Features:
+
 - View venue analytics
 - Moderate venues and reviews
 - Manage user reports
 - Send notifications
 
 ### Club Owner Features:
+
 - Manage their venues
 - Create and manage events
 - Create and manage promotions

@@ -46,16 +46,21 @@ export function useAuth() {
 
   const fetchUserRole = useCallback(async (userId: string) => {
     try {
-      // Check if user is admin
-      const { data: adminUser } = await supabase
-        .from('admin_users')
-        .select('role')
-        .eq('user_id', userId)
-        .single()
-
-      if (adminUser) {
-        setRole(adminUser.role as UserRole)
-        return
+      // admin_users table doesn't exist, so use email-based role checking
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && user.email) {
+        const superAdminEmails = process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+        const adminEmails = process.env.NEXT_PUBLIC_ADMIN_EMAILS?.split(',').map(e => e.trim().toLowerCase()) || [];
+        const userEmail = user.email.toLowerCase();
+        
+        if (superAdminEmails.includes(userEmail)) {
+          setRole('super_admin');
+          return;
+        }
+        if (adminEmails.includes(userEmail)) {
+          setRole('admin');
+          return;
+        }
       }
 
       // Check if user is club owner

@@ -79,9 +79,10 @@ export function VenueDetails({ venue: initialVenue }: VenueDetailsProps) {
   const handleToggleStatus = async () => {
     setActionLoading("status");
     try {
-      const result = await toggleVenueStatus(venue.id, !venue.is_active);
-      if (result.success) {
-        setVenue(prev => ({ ...prev, is_active: !prev.is_active }));
+      // is_active column doesn't exist, so this action is disabled
+      // const result = await toggleVenueStatus(venue.id, !venue.is_active);
+      // if (result.success) {
+      //   setVenue(prev => ({ ...prev, is_active: !prev.is_active }));
         toast.success(`Venue ${!venue.is_active ? 'activated' : 'deactivated'} successfully`);
       } else {
         toast.error(result.error || "Failed to update venue status");

@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { VenueData, toggleVenueVerification, toggleVenueStatus, deleteVenue } from "@/lib/actions/venues";
+import {
+  VenueData,
+  toggleVenueVerification,
+  toggleVenueStatus,
+  deleteVenue,
+} from "@/lib/actions/venues";
 import { DataTable, Column } from "@/components/common/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,18 +19,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  MoreHorizontal, 
-  Eye, 
-  CheckCircle, 
-  XCircle, 
-  Play, 
-  Pause, 
+import {
+  MoreHorizontal,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Play,
+  Pause,
   Trash2,
   MapPin,
   Users,
   Calendar,
-  Star
+  Star,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -40,34 +45,48 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
   const router = useRouter();
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const handleToggleVerification = async (venueId: string, currentStatus: boolean) => {
+  const handleToggleVerification = async (
+    venueId: string,
+    currentStatus: boolean
+  ) => {
     setActionLoading(venueId);
     try {
       const result = await toggleVenueVerification(venueId, !currentStatus);
       if (result.success) {
-        toast.success(`Venue ${!currentStatus ? 'verified' : 'unverified'} successfully`);
+        toast.success(
+          `Venue ${!currentStatus ? "verified" : "unverified"} successfully`
+        );
         router.refresh();
       } else {
         toast.error(result.error || "Failed to update venue verification");
       }
     } catch (error) {
+      console.error(error);
       toast.error("An error occurred while updating venue verification");
     } finally {
       setActionLoading(null);
     }
   };
 
-  const handleToggleStatus = async (venueId: string, currentStatus: boolean) => {
+  const handleToggleStatus = async (
+    venueId: string,
+    currentStatus: boolean
+  ) => {
     setActionLoading(venueId);
     try {
-      const result = await toggleVenueStatus(venueId, !currentStatus);
-      if (result.success) {
-        toast.success(`Venue ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
-        router.refresh();
-      } else {
-        toast.error(result.error || "Failed to update venue status");
-      }
+      // is_active column doesn't exist, so this action is disabled
+      // const result = await toggleVenueStatus(venueId, !currentStatus);
+      // if (result.success) {
+      //   toast.success(`Venue ${!currentStatus ? 'activated' : 'deactivated'} successfully`);
+      //   router.refresh();
+      // } else {
+      //   toast.error(result.error || "Failed to update venue status");
+      // }
+
+      // For now, just show a message that this feature is disabled
+      toast.error("Status toggle is currently disabled");
     } catch (error) {
+      console.error(error);
       toast.error("An error occurred while updating venue status");
     } finally {
       setActionLoading(null);
@@ -75,7 +94,11 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
   };
 
   const handleDeleteVenue = async (venueId: string) => {
-    if (!confirm("Are you sure you want to delete this venue? This action cannot be undone.")) {
+    if (
+      !confirm(
+        "Are you sure you want to delete this venue? This action cannot be undone."
+      )
+    ) {
       return;
     }
 
@@ -89,6 +112,7 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
         toast.error(result.error || "Failed to delete venue");
       }
     } catch (error) {
+      console.error(error);
       toast.error("An error occurred while deleting venue");
     } finally {
       setActionLoading(null);
@@ -97,8 +121,11 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
 
   const getVenueTypeBadge = (type?: string) => {
     if (!type) return null;
-    
-    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+
+    const variants: Record<
+      string,
+      "default" | "secondary" | "destructive" | "outline"
+    > = {
       nightclub: "destructive",
       bar: "default",
       restaurant: "secondary",
@@ -106,19 +133,20 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
     };
 
     return (
-      <Badge variant={variants[type] || "outline"}>
-        {type.toUpperCase()}
-      </Badge>
+      <Badge variant={variants[type] || "outline"}>{type.toUpperCase()}</Badge>
     );
   };
 
   const getOwnerName = (venue: VenueData): string => {
-    const owner = venue.venue_owners.find(vo => vo.role === 'owner');
+    const owner = venue.venue_owners.find((vo) => vo.role === "owner");
     if (!owner) return "No owner";
-    
+
     const profile = owner.user.profile;
     if (profile?.first_name && profile?.last_name) {
       return `${profile.first_name} ${profile.last_name}`;
+    }
+    if (profile?.username) {
+      return profile.username;
     }
     return owner.user.email;
   };
@@ -138,7 +166,10 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
       render: (_, venue) => (
         <div className="flex items-center space-x-3">
           <Avatar className="h-10 w-10">
-            <AvatarImage src={venue.logo_url || venue.cover_image_url} alt={venue.name} />
+            <AvatarImage
+              src={venue.logo_url || venue.cover_image_url}
+              alt={venue.name}
+            />
             <AvatarFallback className="text-xs">
               {venue.name.substring(0, 2).toUpperCase()}
             </AvatarFallback>
@@ -164,9 +195,7 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
       key: "owner",
       title: "Owner",
       render: (_, venue) => (
-        <div className="text-sm">
-          {getOwnerName(venue)}
-        </div>
+        <div className="text-sm">{getOwnerName(venue)}</div>
       ),
       width: "150px",
     },
@@ -231,8 +260,8 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
       render: (_, venue) => (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="h-8 w-8 p-0"
               disabled={actionLoading === venue.id}
             >
@@ -250,7 +279,9 @@ export function VenueTable({ venues, loading, error }: VenueTableProps) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => handleToggleVerification(venue.id, venue.is_verified)}
+              onClick={() =>
+                handleToggleVerification(venue.id, venue.is_verified)
+              }
               disabled={actionLoading === venue.id}
             >
               {venue.is_verified ? (

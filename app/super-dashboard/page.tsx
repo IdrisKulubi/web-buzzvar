@@ -45,7 +45,8 @@ export default async function SuperAdminDashboard() {
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('venues').select('*', { count: 'exact', head: true }),
     supabase.from('events').select('*', { count: 'exact', head: true }),
-    supabase.from('admin_users').select('*', { count: 'exact', head: true })
+    // admin_users table doesn't exist, so return 0 count
+    Promise.resolve({ count: 0 })
   ])
 
   return (
@@ -272,7 +273,7 @@ export default async function SuperAdminDashboard() {
             </CardHeader>
             <CardContent>
               <Button asChild variant="outline" className="w-full">
-                <Link href="/club-owner">
+                <Link href="/club-dashboard">
                   <Eye className="mr-2 h-4 w-4" />
                   View Club Owner Dashboard
                 </Link>

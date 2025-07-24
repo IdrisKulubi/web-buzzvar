@@ -31,7 +31,6 @@ export async function getVenueImages(venueId: string): Promise<ActionResult<Venu
       .from("venue_images")
       .select("*")
       .eq("venue_id", venueId)
-      .eq("is_active", true)
       .order("display_order", { ascending: true });
 
     if (error) {

@@ -26,7 +26,7 @@ export interface VenueFilters {
 
 interface VenueFiltersProps {
   filters: VenueFilters;
-  onFiltersChange: (filters: VenueFilters) => void;
+  onFiltersChange?: (filters: VenueFilters) => void;
   cities: string[];
   countries: string[];
 }
@@ -40,21 +40,25 @@ export function VenueFiltersComponent({
   const [isExpanded, setIsExpanded] = useState(false);
 
   const updateFilter = (key: keyof VenueFilters, value: string) => {
-    onFiltersChange({
-      ...filters,
-      [key]: value,
-    });
+    if (onFiltersChange) {
+      onFiltersChange({
+        ...filters,
+        [key]: value,
+      });
+    }
   };
 
   const clearFilters = () => {
-    onFiltersChange({
-      search: "",
-      verification: "all",
-      status: "all",
-      venueType: "all",
-      city: "",
-      country: "",
-    });
+    if (onFiltersChange) {
+      onFiltersChange({
+        search: "",
+        verification: "all",
+        status: "all",
+        venueType: "all",
+        city: "",
+        country: "",
+      });
+    }
   };
 
   const getActiveFiltersCount = () => {
