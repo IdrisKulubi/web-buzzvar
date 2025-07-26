@@ -12,16 +12,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { LogOut, Settings, User as UserIcon } from "lucide-react";
+import { LogOut, Settings, User as UserIcon, Menu } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
 interface DashboardHeaderProps {
   user: User;
   userRole: UserRole;
+  onMenuClick?: () => void;
 }
 
-export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
+export function DashboardHeader({ user, userRole, onMenuClick }: DashboardHeaderProps) {
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -54,6 +55,14 @@ export function DashboardHeader({ user, userRole }: DashboardHeaderProps) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center py-4">
           <div className="flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden mr-2"
+              onClick={onMenuClick}
+            >
+              <Menu className="h-6 w-6" />
+            </Button>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               {getRoleDisplayName(userRole)} Dashboard
             </h2>

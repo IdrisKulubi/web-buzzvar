@@ -8,14 +8,15 @@ interface VenuePageProps {
   };
 }
 
-export default async function VenuePage({ params }: VenuePageProps) {
+export default async function VenuePage(props: VenuePageProps) {
+  const params = await props.params;
   const result = await getClubOwnerVenueById(params.id);
 
   if (!result.success) {
     if (result.error === "Venue not found or access denied") {
       notFound();
     }
-    
+
     return (
       <div className="container mx-auto py-8">
         <div className="text-center">

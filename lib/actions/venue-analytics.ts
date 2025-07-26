@@ -281,8 +281,6 @@ export async function getVenueTopReviews(
 export async function getVenuePerformanceMetrics(
   venueId: string
 ): Promise<ActionResult<{
-  totalEvents: number;
-  activeEvents: number;
   totalPromotions: number;
   activePromotions: number;
   totalImages: number;
@@ -312,21 +310,11 @@ export async function getVenuePerformanceMetrics(
 
     // Get performance metrics
     const [
-      eventsResult,
-      activeEventsResult,
       promotionsResult,
       activePromotionsResult,
       imagesResult,
       reviewsResult
     ] = await Promise.all([
-      supabase
-        .from("events")
-        .select("id", { count: "exact" })
-        .eq("venue_id", venueId),
-      supabase
-        .from("events")
-        .select("id", { count: "exact" })
-        .eq("venue_id", venueId),
       supabase
         .from("promotions")
         .select("id", { count: "exact" })
@@ -345,7 +333,7 @@ export async function getVenuePerformanceMetrics(
         .eq("venue_id", venueId)
     ]);
 
-    if (eventsResult.error || activeEventsResult.error || promotionsResult.error || 
+    if (promotionsResult.error || 
         activePromotionsResult.error || imagesResult.error || reviewsResult.error) {
       console.error("Error fetching performance metrics");
       return { success: false, error: "Failed to fetch performance metrics" };
@@ -358,8 +346,6 @@ export async function getVenuePerformanceMetrics(
       : null;
 
     const metrics = {
-      totalEvents: eventsResult.count || 0,
-      activeEvents: activeEventsResult.count || 0,
       totalPromotions: promotionsResult.count || 0,
       activePromotions: activePromotionsResult.count || 0,
       totalImages: imagesResult.count || 0,

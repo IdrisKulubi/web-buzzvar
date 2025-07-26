@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
 import { revalidatePath } from "next/cache";
 import { Venue, VenueOwner, User, UserProfile } from "@/lib/types/database";
 import { ActionResult } from "@/lib/types/errors";
@@ -314,6 +315,7 @@ export async function updateVenueDetails(
 export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
   try {
     const supabase = await createClient();
+    const serviceSupabase = createServiceClient();
     
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -321,7 +323,8 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
       return { success: false, error: "Unauthorized" };
     }
 
-    const { data: venues, error } = await supabase
+    // Use service client to bypass RLS for venue_owners relationship
+    const { data: venues, error } = await serviceSupabase
       .from("venues")
       .select(`
         *,
@@ -407,6 +410,7 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
 export async function getClubOwnerVenueById(id: string): Promise<ActionResult<VenueData>> {
   try {
     const supabase = await createClient();
+    const serviceSupabase = createServiceClient();
     
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -414,8 +418,8 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
       return { success: false, error: "Unauthorized" };
     }
 
-    // Check if user owns this venue
-    const { data: ownership, error: ownershipError } = await supabase
+    // Step 1: Definitively verify ownership using the service client to bypass RLS.
+    const { data: ownership, error: ownershipError } = await serviceSupabase
       .from("venue_owners")
       .select("id")
       .eq("user_id", user.id)
@@ -423,10 +427,14 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
       .single();
 
     if (ownershipError || !ownership) {
-      return { success: false, error: "Venue not found or access denied" };
+      console.error(
+        `Ownership check failed for user ${user.id} and venue ${id}. Error: ${JSON.stringify(ownershipError, null, 2)}`
+      );
+      return { success: false, error: "Access Denied: You are not the owner of this venue." };
     }
-
-    const { data: venue, error } = await supabase
+    
+    // Step 2: Since ownership is confirmed, fetch the core venue data using the service client.
+    const { data: venue, error: venueError } = await serviceSupabase
       .from("venues")
       .select(`
         *,
@@ -436,73 +444,56 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
           user:users (
             id,
             email,
-            created_at
+            created_at,
+            profile:user_profiles (
+              first_name,
+              last_name,
+              username,
+              avatar_url
+            )
           )
         )
       `)
       .eq("id", id)
       .single();
 
-    if (error) {
-      console.error("Error fetching venue:", error);
-      return { success: false, error: "Failed to fetch venue" };
+    if (venueError || !venue) {
+      console.error(
+        `Failed to fetch venue ${id} after ownership was confirmed. Error: ${JSON.stringify(venueError, null, 2)}`
+      );
+      return { success: false, error: "Failed to fetch venue data." };
     }
 
-    if (!venue) {
-      return { success: false, error: "Venue not found" };
-    }
-
-    // Get user profiles for venue owners
-    const userIds = venue.venue_owners.map(owner => owner.user.id);
-    const { data: profiles } = await supabase
-      .from("user_profiles")
-      .select("user_id, first_name, last_name, username, avatar_url")
-      .in("user_id", userIds);
-
-    // Create a map of user profiles
-    const profileMap = new Map(
-      profiles?.map(profile => [profile.user_id, profile]) || []
-    );
-
-    // Attach profiles to venue owners
-    const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
-      ...owner,
-      user: {
-        ...owner.user,
-        profile: profileMap.get(owner.user.id) || null
-      }
-    }));
-
-    // Get counts
-    const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
-      supabase
-        .from("events")
-        .select("id", { count: "exact" })
+    // Step 3: Fetch counts separately to avoid issues with misconfigured relationships.
+    const [promotionsCount, reviewsCount, imagesCount] = await Promise.all([
+      serviceSupabase
+        .from("promotions")
+        .select("id", { count: "exact", head: true })
         .eq("venue_id", venue.id),
-      supabase
+      serviceSupabase
         .from("reviews")
-        .select("id", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .eq("venue_id", venue.id),
-      supabase
+      serviceSupabase
         .from("venue_images")
-        .select("id", { count: "exact" })
+        .select("id", { count: "exact", head: true })
         .eq("venue_id", venue.id),
     ]);
 
+    // Step 4: Combine the venue data with the counts.
     const venueWithCounts = {
       ...venue,
-      venue_owners: venueOwnersWithProfiles,
       _count: {
-        events: eventsCount.count || 0,
+        promotions: promotionsCount.count || 0,
         reviews: reviewsCount.count || 0,
         venue_images: imagesCount.count || 0,
       },
     };
-
+    
     return { success: true, data: venueWithCounts };
   } catch (error) {
-    console.error("Error in getClubOwnerVenueById:", error);
-    return { success: false, error: "An unexpected error occurred" };
+    console.error("An unexpected server error occurred in getClubOwnerVenueById:", error);
+    return { success: false, error: "An unexpected server error occurred." };
   }
 }
 
@@ -552,8 +543,12 @@ export async function createVenue(formData: FormData): Promise<ActionResult<{ id
       return { success: false, error: "Failed to create venue" };
     }
 
-    // Create venue owner relationship
-    const { error: ownerError } = await supabase
+    console.log("Creating venue owner relationship for user:", user.id, "venue:", venue.id);
+    
+    // Create venue owner relationship using service role to bypass RLS
+    const serviceSupabase = createServiceClient();
+    
+    const { error: ownerError } = await serviceSupabase
       .from("venue_owners")
       .insert({
         user_id: user.id,
@@ -567,6 +562,8 @@ export async function createVenue(formData: FormData): Promise<ActionResult<{ id
       await supabase.from("venues").delete().eq("id", venue.id);
       return { success: false, error: "Failed to create venue ownership" };
     }
+
+    console.log("Successfully created venue and venue owner relationship");
 
     revalidatePath("/club-owner/venues");
 

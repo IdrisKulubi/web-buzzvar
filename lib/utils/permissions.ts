@@ -1,5 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 
+// Import service client with error handling
+let createServiceClient: (() => any) | null = null;
+try {
+  createServiceClient = require("@/lib/supabase/service").createServiceClient;
+} catch (error) {
+  console.log("Service client not available");
+}
+
 export type UserRole = "super_admin" | "admin" | "moderator" | "club_owner" | null;
 
 export async function getUserRole(userId: string): Promise<UserRole> {
@@ -36,16 +44,39 @@ export async function getUserRole(userId: string): Promise<UserRole> {
     // admin_users table doesn't exist, so skip database role check
     console.log("admin_users table doesn't exist, skipping database role check");
 
-    // Check if user is a venue owner
-    const { data: venueOwner, error: venueError } = await supabase
-      .from("venue_owners")
-      .select("role")
-      .eq("user_id", userId)
-      .single();
+    // Check if user is a venue owner using service client to bypass RLS
+    if (createServiceClient) {
+      try {
+        const serviceSupabase = createServiceClient();
+        const { data: venueOwner, error: venueError } = await serviceSupabase
+          .from("venue_owners")
+          .select("role")
+          .eq("user_id", userId)
+          .single();
 
-    if (!venueError && venueOwner) {
-      console.log("User is venue owner");
-      return "club_owner";
+        if (!venueError && venueOwner) {
+          console.log("User is venue owner (via service client)");
+          return "club_owner";
+        }
+      } catch (serviceError) {
+        console.log("Service client error:", serviceError);
+      }
+    }
+    
+    // Fallback to regular client
+    try {
+      const { data: venueOwner, error: venueError } = await supabase
+        .from("venue_owners")
+        .select("role")
+        .eq("user_id", userId)
+        .single();
+
+      if (!venueError && venueOwner) {
+        console.log("User is venue owner (via regular client)");
+        return "club_owner";
+      }
+    } catch (regularError) {
+      console.log("Regular client error:", regularError);
     }
 
     console.log("No role found for user");
@@ -83,14 +114,37 @@ export async function getUserRoleByEmail(email: string): Promise<UserRole> {
 
     // admin_users table doesn't exist, so skip database role check
 
-    const { data: venueOwner, error: venueError } = await supabase
-      .from("venue_owners")
-      .select("role")
-      .eq("user_id", users.id)
-      .single();
+    // Check if user is a venue owner using service client to bypass RLS
+    if (createServiceClient) {
+      try {
+        const serviceSupabase = createServiceClient();
+        const { data: venueOwner, error: venueError } = await serviceSupabase
+          .from("venue_owners")
+          .select("role")
+          .eq("user_id", users.id)
+          .single();
 
-    if (!venueError && venueOwner) {
-      return "club_owner";
+        if (!venueError && venueOwner) {
+          return "club_owner";
+        }
+      } catch (serviceError) {
+        console.log("Service client error:", serviceError);
+      }
+    }
+    
+    // Fallback to regular client
+    try {
+      const { data: venueOwner, error: venueError } = await supabase
+        .from("venue_owners")
+        .select("role")
+        .eq("user_id", users.id)
+        .single();
+
+      if (!venueError && venueOwner) {
+        return "club_owner";
+      }
+    } catch (regularError) {
+      console.log("Regular client error:", regularError);
     }
 
     return null;

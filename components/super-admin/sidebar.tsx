@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   Users,
   Building2,
-  Calendar,
   BarChart3,
   Shield,
   Settings,

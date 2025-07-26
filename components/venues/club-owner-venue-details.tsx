@@ -1,10 +1,16 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { VenueData } from "@/lib/actions/venues";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createPromotion } from "@/lib/actions/promotions";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { PromotionForm } from "@/components/promotions/promotion-form";
+import { toast } from "sonner";
 import {
   MapPin,
   Phone,
@@ -16,16 +22,14 @@ import {
   Users,
   Clock,
   DollarSign,
-  Calendar,
   Star,
   Image as ImageIcon,
   Edit,
   TrendingUp,
   Plus,
-  Settings
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { PromotionFormValues } from "@/components/promotions/promotion-form";
 
 interface ClubOwnerVenueDetailsProps {
   venue: VenueData;
@@ -33,8 +37,25 @@ interface ClubOwnerVenueDetailsProps {
 
 export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
   const router = useRouter();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const formatOpeningHours = (hours: any) => {
+  const handleSubmit = async (data: PromotionFormValues) => {
+    setIsSubmitting(true);
+    
+    const result = await createPromotion(venue.id, data);
+
+    if (result.success) {
+      toast.success("Promotion created successfully!");
+      setIsModalOpen(false);
+      router.refresh(); 
+    } else {
+      toast.error(result.error || "Failed to create promotion.");
+    }
+    setIsSubmitting(false);
+  };
+
+  const formatOpeningHours = (hours: Record<string, { open: string; close: string }>) => {
     if (!hours || typeof hours !== 'object') return "Not specified";
     
     const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -62,9 +83,6 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
               <Badge variant={venue.is_verified ? "default" : "secondary"}>
                 {venue.is_verified ? "Verified" : "Pending Verification"}
               </Badge>
-              <Badge variant={venue.is_active ? "default" : "secondary"}>
-                {venue.is_active ? "Active" : "Inactive"}
-              </Badge>
               {venue.venue_type && (
                 <Badge variant="outline">
                   {venue.venue_type.toUpperCase()}
@@ -82,7 +100,7 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
             </Button>
           </Link>
           <Link href={`/club-owner/venues/${venue.id}/analytics`}>
-            <Button variant="outline">
+            <Button>
               <TrendingUp className="h-4 w-4 mr-2" />
               Analytics
             </Button>
@@ -91,36 +109,10 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Link href={`/club-owner/venues/${venue.id}/events`}>
-          <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Events</p>
-                  <p className="text-2xl font-bold">{venue._count?.events || 0}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link href={`/club-owner/venues/${venue.id}/promotions`}>
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-            <CardContent className="p-4">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-green-100 rounded-lg">
-                  <DollarSign className="h-5 w-5 text-green-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Promotions</p>
-                  <p className="text-2xl font-bold">0</p>
-                </div>
-              </div>
-            </CardContent>
+           
           </Card>
         </Link>
 
@@ -140,6 +132,7 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
           </Card>
         </Link>
 
+        <Link href={`/club-owner/venues/${venue.id}/images`}>
         <Card className="hover:shadow-md transition-shadow cursor-pointer">
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
@@ -153,6 +146,7 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
             </div>
           </CardContent>
         </Card>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -251,18 +245,20 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link href={`/club-owner/venues/${venue.id}/events/create`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Event
-                </Button>
-              </Link>
-              <Link href={`/club-owner/venues/${venue.id}/promotions/create`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Promotion
-                </Button>
-              </Link>
+               <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Promotion
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Promotion</DialogTitle>
+                  </DialogHeader>
+                  <PromotionForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+                </DialogContent>
+              </Dialog>
               <Link href={`/club-owner/venues/${venue.id}/images`}>
                 <Button variant="outline" className="w-full justify-start">
                   <Plus className="h-4 w-4 mr-2" />
@@ -329,14 +325,14 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
           )}
 
           {/* Amenities */}
-          {venue.amenities && venue.amenities.length > 0 && (
+          {venue.amenities && (
             <Card>
               <CardHeader>
                 <CardTitle>Amenities</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {venue.amenities.map((amenity, index) => (
+                  {Array.isArray(venue.amenities) && venue.amenities.map((amenity, index) => (
                     <Badge key={index} variant="outline">
                       {amenity}
                     </Badge>
@@ -364,7 +360,7 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
                     <span className="text-sm">Verification pending</span>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Your venue is under review. You'll be notified once it's verified.
+                    Your venue is under review. You will be notified once it is verified.
                   </p>
                 </div>
               )}

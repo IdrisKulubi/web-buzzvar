@@ -1,36 +1,41 @@
-import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
-import { getUserRole } from '@/lib/utils/permissions'
-import { redirect } from 'next/navigation'
-import { DashboardSidebar } from '@/components/dashboard/sidebar'
-import { DashboardHeader } from '@/components/dashboard/header'
+import { Suspense } from 'react';
+import { createClient } from '@/lib/supabase/server';
+import { getUserRole } from '@/lib/utils/permissions';
+import { redirect } from 'next/navigation';
+import { ClubOwnerProvider } from '@/components/club-owner/club-owner-provider';
+import { getClubOwnerVenues } from '@/lib/actions/venues';
+import { DashboardLayoutClient } from './dashboard-layout-client';
 
 async function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
-  const supabase = await createClient()
+  const supabase = await createClient();
   
-  const { data: { user }, error } = await supabase.auth.getUser()
+  const { data: { user }, error } = await supabase.auth.getUser();
   
   if (error || !user) {
-    redirect('/login')
+    redirect('/login');
   }
   
-  const userRole = await getUserRole(user.id)
+  const userRole = await getUserRole(user.id);
   
   if (!userRole) {
-    redirect('/unauthorized')
+    redirect('/unauthorized');
+  }
+
+  let clubOwnerVenueId: string | null = null;
+  if (userRole === 'club_owner') {
+    const result = await getClubOwnerVenues();
+    if (result.success && result.data.length > 0) {
+      clubOwnerVenueId = result.data[0].id;
+    }
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
-      <DashboardSidebar userRole={userRole} />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <DashboardHeader user={user} userRole={userRole} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 dark:bg-gray-900">
-          {children}
-        </main>
-      </div>
-    </div>
-  )
+    <ClubOwnerProvider venueId={clubOwnerVenueId}>
+      <DashboardLayoutClient user={user} userRole={userRole}>
+        {children}
+      </DashboardLayoutClient>
+    </ClubOwnerProvider>
+  );
 }
 
 export default function DashboardLayout({
@@ -46,5 +51,5 @@ export default function DashboardLayout({
     }>
       <DashboardLayoutContent>{children}</DashboardLayoutContent>
     </Suspense>
-  )
+  );
 }

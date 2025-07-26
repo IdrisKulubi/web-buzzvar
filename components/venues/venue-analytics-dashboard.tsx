@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { VenueData } from "@/lib/actions/venues";
 import { VenueAnalyticsSummary, getVenueAnalytics } from "@/lib/actions/venue-analytics";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -17,8 +16,6 @@ import {
   Star,
   TrendingUp,
   TrendingDown,
-  Calendar,
-  Users,
   MessageSquare
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
@@ -29,15 +26,6 @@ interface VenueAnalyticsDashboardProps {
   summary: VenueAnalyticsSummary | null;
   recentActivity: any[];
   topReviews: any[];
-  performanceMetrics?: {
-    totalEvents: number;
-    activeEvents: number;
-    totalPromotions: number;
-    activePromotions: number;
-    totalImages: number;
-    averageRating: number | null;
-    totalReviews: number;
-  } | null;
 }
 
 export function VenueAnalyticsDashboard({ 
@@ -45,8 +33,7 @@ export function VenueAnalyticsDashboard({
   venue, 
   summary, 
   recentActivity, 
-  topReviews,
-  performanceMetrics 
+  topReviews 
 }: VenueAnalyticsDashboardProps) {
   const [dateRange, setDateRange] = useState("30");
   const [chartData, setChartData] = useState<any[]>([]);
@@ -138,7 +125,7 @@ export function VenueAnalyticsDashboard({
 
       {/* Summary Cards */}
       {summary && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -205,84 +192,11 @@ export function VenueAnalyticsDashboard({
         </div>
       )}
 
-      {/* Performance Metrics */}
-      {performanceMetrics && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Events</p>
-                  <p className="text-2xl font-bold">{performanceMetrics.totalEvents}</p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <Calendar className="h-4 w-4 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">
-                    {performanceMetrics.activeEvents} active
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Promotions</p>
-                  <p className="text-2xl font-bold">{performanceMetrics.totalPromotions}</p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <Star className="h-4 w-4 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">
-                    {performanceMetrics.activePromotions} active
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Images</p>
-                  <p className="text-2xl font-bold">{performanceMetrics.totalImages}</p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <Eye className="h-4 w-4 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">
-                    Gallery
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Reviews</p>
-                  <p className="text-2xl font-bold">{performanceMetrics.totalReviews}</p>
-                </div>
-                <div className="flex flex-col items-end">
-                  <MessageSquare className="h-4 w-4 text-muted-foreground mb-1" />
-                  <span className="text-xs text-muted-foreground">
-                    {performanceMetrics.averageRating ? `${performanceMetrics.averageRating.toFixed(1)} avg` : 'No rating'}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <CardTitle>Views Over Time</CardTitle>
               <Select value={dateRange} onValueChange={(value) => {
                 setDateRange(value);
@@ -528,30 +442,6 @@ export function VenueAnalyticsDashboard({
                   </div>
                 )}
 
-                {performanceMetrics && performanceMetrics.totalImages < 5 && (
-                  <div className="flex items-start space-x-3 p-3 bg-blue-50 rounded-lg">
-                    <Eye className="h-5 w-5 text-blue-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-blue-900">Add More Images</p>
-                      <p className="text-sm text-blue-700">
-                        You only have {performanceMetrics.totalImages} images. Adding more high-quality photos can increase engagement by up to 40%.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {performanceMetrics && performanceMetrics.activePromotions === 0 && (
-                  <div className="flex items-start space-x-3 p-3 bg-purple-50 rounded-lg">
-                    <Star className="h-5 w-5 text-purple-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-purple-900">Create Promotions</p>
-                      <p className="text-sm text-purple-700">
-                        You don't have any active promotions. Creating special offers can attract more customers and increase bookings.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
                 {summary.averageRating && summary.averageRating < 4.0 && (
                   <div className="flex items-start space-x-3 p-3 bg-red-50 rounded-lg">
                     <MessageSquare className="h-5 w-5 text-red-600 mt-0.5" />
@@ -577,3 +467,5 @@ export function VenueAnalyticsDashboard({
         </CardContent>
       </Card>
     </div>
+  );
+}

@@ -171,7 +171,6 @@ export const promotionSchema = z
     terms_conditions: z.string().optional(),
     image_url: z.string().url().optional(),
     is_active: z.boolean().default(true),
-    created_by: uuidSchema,
   })
   .refine(
     (data) => {
@@ -359,9 +358,12 @@ export const eventFormSchema = eventSchema.omit({
   is_featured: true,
   is_active: true,
 });
-export const promotionFormSchema = promotionSchema.omit({
-  current_uses: true,
-  is_active: true,
+export const promotionFormSchema = z.object({
+  title: z.string().min(1, "Promotion title is required").max(200),
+  description: z.string().optional(),
+  start_date: z.string(),
+  end_date: z.string(),
+  is_active: z.boolean(),
 });
 
 // Login and authentication schemas

@@ -6,10 +6,16 @@ import { redirect } from 'next/navigation'
 export async function signInWithGoogle() {
   const supabase = await createClient()
   
+  // Get the current origin for the redirect URL
+  const origin = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+  const redirectTo = `${origin}/auth/callback`
+  
+  console.log('Initiating Google OAuth with redirect URL:', redirectTo)
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      redirectTo,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
@@ -23,7 +29,11 @@ export async function signInWithGoogle() {
   }
   
   if (data.url) {
+    console.log('Redirecting to Google OAuth URL:', data.url)
     redirect(data.url)
+  } else {
+    console.error('No OAuth URL returned from Supabase')
+    throw new Error('No OAuth URL returned')
   }
 }
 

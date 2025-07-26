@@ -47,6 +47,34 @@ export async function updateSession(request: NextRequest) {
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 
+  // If user is authenticated, ensure they exist in our users table
+  if (user && user.sub && user.email) {
+    try {
+      // Check if user exists in our users table
+      const { data: existingUser, error: userError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("id", user.sub)
+        .single();
+
+      // If user doesn't exist, create them
+      if (userError && userError.code === 'PGRST116') { // No rows returned
+        await supabase
+          .from("users")
+          .insert({
+            id: user.sub,
+            email: user.email,
+            created_at: new Date().toISOString(),
+          });
+        
+        console.log(`Auto-created user profile for ${user.email}`);
+      }
+    } catch (error) {
+      console.error("Error ensuring user exists in middleware:", error);
+      // Don't block the request if user creation fails
+    }
+  }
+
   // Define public routes that don't require authentication
   const publicRoutes = [
     '/',
@@ -57,7 +85,8 @@ export async function updateSession(request: NextRequest) {
     '/auth/forgot-password',
     '/auth/sign-up-success',
     '/auth/update-password',
-    '/unauthorized'
+    '/unauthorized',
+    '/venue-setup'
   ]
   
   const isPublicRoute = publicRoutes.some(route => 

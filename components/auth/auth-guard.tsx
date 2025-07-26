@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
-import { getCurrentUser, getUserRole, type UserRole } from '@/lib/utils/auth'
+import { getCurrentUser } from '@/lib/actions/auth'
+import { getUserRole, type UserRole } from '@/lib/utils/permissions'
 
 interface AuthGuardProps {
   children: React.ReactNode
