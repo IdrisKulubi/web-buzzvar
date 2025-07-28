@@ -15,7 +15,7 @@ export interface VenueData extends Venue {
     };
   }>;
   _count?: {
-    events: number;
+    promotions: number;
     reviews: number;
     venue_images: number;
   };
@@ -65,7 +65,7 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
     // Get counts for each venue and attach profiles
     const venuesWithCounts = await Promise.all(
       (venues || []).map(async (venue) => {
-        const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
+        const [eventsCount, reviewsCount] = await Promise.all([
           supabase
             .from("events")
             .select("id", { count: "exact" })
@@ -74,11 +74,12 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
             .from("reviews")
             .select("id", { count: "exact" })
             .eq("venue_id", venue.id),
-          supabase
-            .from("venue_images")
-            .select("id", { count: "exact" })
-            .eq("venue_id", venue.id),
         ]);
+
+        // Calculate media count based on existing cover URLs
+        let mediaCount = 0;
+        if (venue.cover_image_url) mediaCount++;
+        if (venue.cover_video_url) mediaCount++;
 
         // Attach profiles to venue owners
         const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
@@ -95,7 +96,7 @@ export async function getVenues(): Promise<ActionResult<VenueData[]>> {
           _count: {
             events: eventsCount.count || 0,
             reviews: reviewsCount.count || 0,
-            venue_images: imagesCount.count || 0,
+            venue_images: mediaCount,
           },
         };
       })
@@ -160,7 +161,7 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
     }));
 
     // Get counts
-    const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
+    const [eventsCount, reviewsCount] = await Promise.all([
       supabase
         .from("events")
         .select("id", { count: "exact" })
@@ -169,11 +170,12 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
         .from("reviews")
         .select("id", { count: "exact" })
         .eq("venue_id", venue.id),
-      supabase
-        .from("venue_images")
-        .select("id", { count: "exact" })
-        .eq("venue_id", venue.id),
     ]);
+
+    // Calculate media count based on existing cover URLs
+    let mediaCount = 0;
+    if (venue.cover_image_url) mediaCount++;
+    if (venue.cover_video_url) mediaCount++;
 
     const venueWithCounts = {
       ...venue,
@@ -181,7 +183,7 @@ export async function getVenueById(id: string): Promise<ActionResult<VenueData>>
       _count: {
         events: eventsCount.count || 0,
         reviews: reviewsCount.count || 0,
-        venue_images: imagesCount.count || 0,
+        venue_images: mediaCount,
       },
     };
 
@@ -364,7 +366,7 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
     // Get counts for each venue and attach profiles
     const venuesWithCounts = await Promise.all(
       (venues || []).map(async (venue) => {
-        const [eventsCount, reviewsCount, imagesCount] = await Promise.all([
+        const [eventsCount, reviewsCount] = await Promise.all([
           supabase
             .from("events")
             .select("id", { count: "exact" })
@@ -373,11 +375,12 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
             .from("reviews")
             .select("id", { count: "exact" })
             .eq("venue_id", venue.id),
-          supabase
-            .from("venue_images")
-            .select("id", { count: "exact" })
-            .eq("venue_id", venue.id),
         ]);
+
+        // Calculate media count based on existing cover URLs
+        let mediaCount = 0;
+        if (venue.cover_image_url) mediaCount++;
+        if (venue.cover_video_url) mediaCount++;
 
         // Attach profiles to venue owners
         const venueOwnersWithProfiles = venue.venue_owners.map(owner => ({
@@ -394,7 +397,7 @@ export async function getClubOwnerVenues(): Promise<ActionResult<VenueData[]>> {
           _count: {
             events: eventsCount.count || 0,
             reviews: reviewsCount.count || 0,
-            venue_images: imagesCount.count || 0,
+            venue_images: mediaCount,
           },
         };
       })
@@ -464,8 +467,7 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
       return { success: false, error: "Failed to fetch venue data." };
     }
 
-    // Step 3: Fetch counts separately to avoid issues with misconfigured relationships.
-    const [promotionsCount, reviewsCount, imagesCount] = await Promise.all([
+    const [promotionsCount, reviewsCount] = await Promise.all([
       serviceSupabase
         .from("promotions")
         .select("id", { count: "exact", head: true })
@@ -474,19 +476,19 @@ export async function getClubOwnerVenueById(id: string): Promise<ActionResult<Ve
         .from("reviews")
         .select("id", { count: "exact", head: true })
         .eq("venue_id", venue.id),
-      serviceSupabase
-        .from("venue_images")
-        .select("id", { count: "exact", head: true })
-        .eq("venue_id", venue.id),
     ]);
 
-    // Step 4: Combine the venue data with the counts.
+    // Calculate media count based on existing cover URLs
+    let mediaCount = 0;
+    if (venue.cover_image_url) mediaCount++;
+    if (venue.cover_video_url) mediaCount++;
+
     const venueWithCounts = {
       ...venue,
       _count: {
         promotions: promotionsCount.count || 0,
         reviews: reviewsCount.count || 0,
-        venue_images: imagesCount.count || 0,
+        venue_images: mediaCount, // Use calculated count instead of querying non-existent table
       },
     };
     

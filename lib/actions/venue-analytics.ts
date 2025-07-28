@@ -312,7 +312,7 @@ export async function getVenuePerformanceMetrics(
     const [
       promotionsResult,
       activePromotionsResult,
-      imagesResult,
+      venueResult,
       reviewsResult
     ] = await Promise.all([
       supabase
@@ -322,11 +322,13 @@ export async function getVenuePerformanceMetrics(
       supabase
         .from("promotions")
         .select("id", { count: "exact" })
-        .eq("venue_id", venueId),
+        .eq("venue_id", venueId)
+        .eq("is_active", true),
       supabase
-        .from("venue_images")
-        .select("id", { count: "exact" })
-        .eq("venue_id", venueId),
+        .from("venues")
+        .select("cover_image_url, cover_video_url")
+        .eq("id", venueId)
+        .single(),
       supabase
         .from("reviews")
         .select("rating")
@@ -334,10 +336,15 @@ export async function getVenuePerformanceMetrics(
     ]);
 
     if (promotionsResult.error || 
-        activePromotionsResult.error || imagesResult.error || reviewsResult.error) {
+        activePromotionsResult.error || venueResult.error || reviewsResult.error) {
       console.error("Error fetching performance metrics");
       return { success: false, error: "Failed to fetch performance metrics" };
     }
+
+    // Calculate media count from venue cover URLs
+    let totalImages = 0;
+    if (venueResult.data?.cover_image_url) totalImages++;
+    if (venueResult.data?.cover_video_url) totalImages++;
 
     // Calculate average rating
     const reviews = reviewsResult.data || [];
@@ -348,7 +355,7 @@ export async function getVenuePerformanceMetrics(
     const metrics = {
       totalPromotions: promotionsResult.count || 0,
       activePromotions: activePromotionsResult.count || 0,
-      totalImages: imagesResult.count || 0,
+      totalImages: totalImages,
       averageRating,
       totalReviews: reviews.length
     };

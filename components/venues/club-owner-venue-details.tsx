@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PromotionFormValues } from "@/components/promotions/promotion-form";
+import { ImageManagerModal } from "./image-manager-modal";
 
 interface ClubOwnerVenueDetailsProps {
   venue: VenueData;
@@ -37,17 +38,23 @@ interface ClubOwnerVenueDetailsProps {
 
 export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
   const router = useRouter();
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isPromoModalOpen, setIsPromoModalOpen] = useState(false);
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (data: PromotionFormValues) => {
+  // Client-side guard to prevent crash if venue is somehow undefined
+  if (!venue) {
+    return null;
+  }
+
+  const handlePromoSubmit = async (data: PromotionFormValues) => {
     setIsSubmitting(true);
     
     const result = await createPromotion(venue.id, data);
 
     if (result.success) {
       toast.success("Promotion created successfully!");
-      setIsModalOpen(false);
+      setIsPromoModalOpen(false);
       router.refresh(); 
     } else {
       toast.error(result.error || "Failed to create promotion.");
@@ -112,7 +119,17 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Link href={`/club-owner/venues/${venue.id}/promotions`}>
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
-           
+            <CardContent className="p-4">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-green-100 rounded-lg">
+                  <DollarSign className="h-5 w-5 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Promotions</p>
+                  <p className="text-2xl font-bold">{venue._count?.promotions || 0}</p>
+                </div>
+              </div>
+            </CardContent>
           </Card>
         </Link>
 
@@ -132,8 +149,10 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
           </Card>
         </Link>
 
-        <Link href={`/club-owner/venues/${venue.id}/images`}>
-        <Card className="hover:shadow-md transition-shadow cursor-pointer">
+        <Card 
+          className="hover:shadow-md transition-shadow cursor-pointer"
+          onClick={() => setIsImageModalOpen(true)}
+        >
           <CardContent className="p-4">
             <div className="flex items-center space-x-3">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -146,8 +165,14 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
             </div>
           </CardContent>
         </Card>
-        </Link>
       </div>
+      
+      <ImageManagerModal 
+        venueId={venue.id}
+        venueName={venue.name}
+        isOpen={isImageModalOpen}
+        onClose={() => setIsImageModalOpen(false)}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Details */}
@@ -245,7 +270,7 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-               <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+               <Dialog open={isPromoModalOpen} onOpenChange={setIsPromoModalOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="w-full justify-start">
                     <Plus className="h-4 w-4 mr-2" />
@@ -256,15 +281,17 @@ export function ClubOwnerVenueDetails({ venue }: ClubOwnerVenueDetailsProps) {
                   <DialogHeader>
                     <DialogTitle>Create New Promotion</DialogTitle>
                   </DialogHeader>
-                  <PromotionForm onSubmit={handleSubmit} isSubmitting={isSubmitting} />
+                  <PromotionForm onSubmit={handlePromoSubmit} isSubmitting={isSubmitting} />
                 </DialogContent>
               </Dialog>
-              <Link href={`/club-owner/venues/${venue.id}/images`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Manage Images
-                </Button>
-              </Link>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={() => setIsImageModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                Manage Images
+              </Button>
             </CardContent>
           </Card>
 

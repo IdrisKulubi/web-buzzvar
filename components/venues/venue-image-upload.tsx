@@ -2,13 +2,10 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { LoadingSpinner } from "@/components/common/loading-spinner";
-import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Image as ImageIcon, Video, FileImage, FileVideo } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface VenueImageUploadProps {
@@ -21,15 +18,14 @@ interface VenueImageUploadProps {
 
 export function VenueImageUpload({
   onUpload,
-  accept = "image/*",
-  maxSize = 5,
+  accept = "image/*,video/*",
+  maxSize = 10,
   className,
   disabled = false
 }: VenueImageUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
-  const [imageType, setImageType] = useState<string>("interior");
   const [caption, setCaption] = useState<string>("");
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -37,8 +33,11 @@ export function VenueImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validateFile = (file: File): string | null => {
-    if (!file.type.startsWith("image/")) {
-      return "Please select an image file";
+    const isImage = file.type.startsWith("image/");
+    const isVideo = file.type.startsWith("video/");
+    
+    if (!isImage && !isVideo) {
+      return "Please select an image or video file";
     }
     
     if (file.size > maxSize * 1024 * 1024) {
@@ -48,23 +47,51 @@ export function VenueImageUpload({
     return null;
   };
 
+  const isVideo = (file: File) => file.type.startsWith("video/");
+  const isImage = (file: File) => file.type.startsWith("image/");
+
+  const createPreview = useCallback((file: File) => {
+    const url = URL.createObjectURL(file);
+    setPreview(url);
+    
+    // Clean up previous preview URL
+    return () => URL.revokeObjectURL(url);
+  }, []);
+
   const handleFileSelect = useCallback((file: File) => {
+    setError(null);
+    
     const validationError = validateFile(file);
     if (validationError) {
       setError(validationError);
       return;
     }
 
-    setError(null);
     setSelectedFile(file);
+    const cleanup = createPreview(file);
     
-    // Create preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreview(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-  }, [maxSize]);
+    // Store cleanup function for later use
+    return cleanup;
+  }, [createPreview, maxSize]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const file = files[0];
+    
+    if (file) {
+      handleFileSelect(file);
+    }
+  }, [handleFileSelect]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -76,25 +103,23 @@ export function VenueImageUpload({
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
-    }
-  }, [handleFileSelect]);
-
-  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length > 0) {
-      handleFileSelect(files[0]);
+  const clearSelection = () => {
+    setSelectedFile(null);
+    setPreview(null);
+    setCaption("");
+    setError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!selectedFile) {
+      setError("Please select a file to upload");
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
@@ -102,176 +127,160 @@ export function VenueImageUpload({
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
-      formData.append("image_type", imageType);
       formData.append("caption", caption);
 
       await onUpload(formData);
       
-      // Reset form
-      setSelectedFile(null);
-      setPreview(null);
-      setCaption("");
-      setImageType("interior");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      // Reset form after successful upload
+      clearSelection();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Upload failed");
     } finally {
       setIsUploading(false);
     }
   };
 
-  const clearSelection = () => {
-    setSelectedFile(null);
-    setPreview(null);
-    setError(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
   return (
-    <div className={cn("space-y-4", className)}>
-      {/* File Drop Zone */}
-      <Card>
-        <CardContent className="p-6">
-          <div
-            className={cn(
-              "border-2 border-dashed rounded-lg p-8 text-center transition-colors",
-              isDragging
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25 hover:border-muted-foreground/50",
-              disabled && "opacity-50 cursor-not-allowed"
-            )}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {preview ? (
-              <div className="space-y-4">
-                <div className="relative inline-block">
-                  <img
-                    src={preview}
-                    alt="Preview"
-                    className="max-w-full max-h-48 rounded-lg object-cover"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                    onClick={clearSelection}
-                    disabled={disabled || isUploading}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">{selectedFile?.name}</p>
-                  <Badge variant="outline">
-                    {(selectedFile?.size || 0) < 1024 * 1024
-                      ? `${Math.round((selectedFile?.size || 0) / 1024)} KB`
-                      : `${Math.round((selectedFile?.size || 0) / (1024 * 1024))} MB`}
-                  </Badge>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="mx-auto w-12 h-12 bg-muted rounded-full flex items-center justify-center">
-                  <ImageIcon className="h-6 w-6 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="text-lg font-medium">Drop your image here</p>
-                  <p className="text-sm text-muted-foreground">
-                    or click to browse files
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={disabled || isUploading}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose File
-                </Button>
-              </div>
-            )}
-          </div>
-
+    <div className={cn("space-y-6", className)}>
+      {/* Upload Area */}
+      <Card 
+        className={cn(
+          "border-2 border-dashed transition-colors cursor-pointer",
+          isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25",
+          disabled && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        <CardContent 
+          className="p-8 text-center space-y-4"
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onClick={() => !disabled && fileInputRef.current?.click()}
+        >
           <input
             ref={fileInputRef}
             type="file"
             accept={accept}
-            onChange={handleFileInputChange}
+            onChange={handleFileChange}
             className="hidden"
-            disabled={disabled || isUploading}
+            disabled={disabled}
           />
+          
+          <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center">
+            <Upload className="h-8 w-8 text-muted-foreground" />
+          </div>
+          
+          <div className="space-y-2">
+            <h3 className="text-lg font-medium">Upload Media</h3>
+            <p className="text-sm text-muted-foreground">
+              Drag and drop your files here, or click to browse
+            </p>
+            <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <FileImage className="h-3 w-3" />
+                Images: JPG, PNG, WebP
+              </div>
+              <div className="flex items-center gap-1">
+                <FileVideo className="h-3 w-3" />
+                Videos: MP4, MOV, WebM
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Max file size: {maxSize}MB
+            </p>
+          </div>
         </CardContent>
       </Card>
 
-      {/* Image Details Form */}
-      {selectedFile && (
+      {/* Error Display */}
+      {error && (
+        <Card className="border-destructive">
+          <CardContent className="p-4">
+            <p className="text-sm text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Preview and Form */}
+      {selectedFile && preview && (
         <Card>
-          <CardContent className="p-6 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="image_type">Image Type</Label>
-                <Select
-                  value={imageType}
-                  onValueChange={setImageType}
-                  disabled={disabled || isUploading}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="cover">Cover Image</SelectItem>
-                    <SelectItem value="interior">Interior</SelectItem>
-                    <SelectItem value="exterior">Exterior</SelectItem>
-                    <SelectItem value="menu">Menu</SelectItem>
-                    <SelectItem value="event">Event</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+          <CardContent className="p-6 space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-medium">Preview & Details</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearSelection}
+                disabled={isUploading}
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
-            <div>
-              <Label htmlFor="caption">Caption (Optional)</Label>
-              <Textarea
-                id="caption"
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="Add a caption for this image..."
-                rows={2}
-                disabled={disabled || isUploading}
-              />
-            </div>
-
-            {error && (
-              <div className="text-sm text-red-600 bg-red-50 p-3 rounded-md">
-                {error}
-              </div>
-            )}
-
-            <Button
-              onClick={handleUpload}
-              disabled={disabled || isUploading || !selectedFile}
-              className="w-full"
-            >
-              {isUploading ? (
-                <>
-                  <LoadingSpinner size="sm" className="mr-2" />
-                  Uploading...
-                </>
+            {/* File Preview */}
+            <div className="aspect-video relative bg-muted rounded-lg overflow-hidden">
+              {isVideo(selectedFile) ? (
+                <video
+                  src={preview}
+                  className="w-full h-full object-cover"
+                  controls
+                  preload="metadata"
+                />
               ) : (
-                <>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Upload Image
-                </>
+                <img
+                  src={preview}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                />
               )}
-            </Button>
+              
+              {/* File Info Overlay */}
+              <div className="absolute top-2 left-2">
+                <div className="bg-black/60 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
+                  {isVideo(selectedFile) ? (
+                    <Video className="h-3 w-3" />
+                  ) : (
+                    <ImageIcon className="h-3 w-3" />
+                  )}
+                  {selectedFile.name}
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="caption" className="text-sm font-medium block mb-2">
+                  Caption (optional)
+                </label>
+                <Textarea
+                  id="caption"
+                  value={caption}
+                  onChange={(e) => setCaption(e.target.value)}
+                  placeholder="Add a description for this media..."
+                  rows={3}
+                  disabled={isUploading}
+                />
+              </div>
+
+              <Button 
+                type="submit" 
+                className="w-full" 
+                disabled={isUploading || !selectedFile}
+              >
+                {isUploading ? (
+                  <>
+                    <LoadingSpinner className="mr-2" />
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload {isVideo(selectedFile) ? 'Video' : 'Photo'}
+                  </>
+                )}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       )}

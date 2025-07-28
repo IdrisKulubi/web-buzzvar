@@ -8,28 +8,21 @@ interface VenuePageProps {
   };
 }
 
-export default async function VenuePage(props: VenuePageProps) {
-  const params = await props.params;
-  const result = await getClubOwnerVenueById(params.id);
+export default async function VenuePage({ params }: VenuePageProps) {
+  const awaitedParams = await params;
+  const result = await getClubOwnerVenueById(awaitedParams.id);
 
-  if (!result.success) {
-    if (result.error === "Venue not found or access denied") {
-      notFound();
-    }
-
-    return (
-      <div className="container mx-auto py-8">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-red-600">Error</h1>
-          <p className="text-muted-foreground mt-2">{result.error}</p>
-        </div>
-      </div>
-    );
+  if (!result.success || !result.data) {
+    notFound();
   }
+
+  // Ensure the venue data is serializable before passing to a client component.
+  // This converts Date objects to strings and removes any other non-plain-object properties.
+  const serializableVenue = JSON.parse(JSON.stringify(result.data));
 
   return (
     <div className="container mx-auto py-8">
-      <ClubOwnerVenueDetails venue={result.data} />
+      <ClubOwnerVenueDetails venue={serializableVenue} />
     </div>
   );
 }
